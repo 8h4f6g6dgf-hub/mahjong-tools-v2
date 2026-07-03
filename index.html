@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0f5132">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="麻雀収支">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<title>麻雀収支ツール v2.5.3</title>
+<style>
+*{box-sizing:border-box}
+:root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;margin:0;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%}
+.container{max-width:720px;margin:0 auto;padding:18px 12px 48px}
+.app-header{padding:8px 2px 2px}
+h1{font-size:24px;margin:8px 0 4px;letter-spacing:-.03em}
+h2{font-size:18px;margin:0 0 12px;letter-spacing:-.02em}
+.release{display:inline-block;font-size:12px;font-weight:800;color:#334155;background:#e2e8f0;padding:4px 8px;border-radius:999px;margin-left:6px;vertical-align:middle}
+.sub{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 16px}
+.status{background:#ecfdf3;color:#087443;border:1px solid #bbf7d0;border-radius:14px;padding:9px 11px;font-size:13px;font-weight:800;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px;margin-top:14px;box-shadow:var(--shadow)}
+.score-list{display:flex;flex-direction:column;gap:10px}
+.score-row{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:center;width:100%;background:var(--soft);border:1px solid #edf2f7;border-radius:16px;padding:8px}
+.score-name{font-weight:900;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:2px}
+input,select,textarea{width:100%;border:1px solid #d8dee9;border-radius:14px;padding:13px 12px;font-size:16px;background:#fff;color:var(--text);outline:none;min-height:48px}
+input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+textarea{min-height:145px;resize:vertical;line-height:1.6;margin-top:10px}
+button{border:none;border-radius:16px;padding:14px 12px;min-height:50px;font-size:16px;font-weight:850;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.buttons{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+.primary{background:linear-gradient(180deg,var(--primary),var(--primary-dark));color:#fff}
+.secondary{background:var(--secondary);color:var(--text)}
+.danger{background:var(--danger-bg);color:var(--danger-text)}
+.result-row{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #eef2f7;font-size:17px}
+.result-row:last-child{border-bottom:none}
+.plus{color:var(--plus);font-weight:850}.minus{color:var(--minus);font-weight:850}.zero{color:#64748b;font-weight:850}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--soft);border:1px solid #edf2f7;border-radius:16px;padding:13px;margin:0;font-size:15px;line-height:1.6;min-height:58px}
+.small{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.5}
+.check-ok{color:var(--plus);font-weight:850}.check-ng{color:#b45f00;font-weight:850}.error{color:#b91c1c;font-weight:850;margin-top:10px;font-size:13px}
+.two-col{display:grid;grid-template-columns:1fr;gap:10px}
+details summary{cursor:pointer;font-weight:900;font-size:17px;list-style-position:inside}
+.month-block{border:1px solid #e5e7eb;border-radius:18px;background:#fff;margin-top:12px;overflow:hidden}
+.month-summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px;background:#f8fafc;cursor:pointer;font-weight:900}
+.month-meta{font-size:13px;color:var(--muted);font-weight:800;white-space:nowrap}
+.history-item{border-top:1px solid #eef2f7;padding:12px;background:#fff}
+.history-head{display:flex;justify-content:space-between;gap:10px;align-items:center;font-weight:900;margin-bottom:8px}
+.history-date{font-size:15px}.history-badge{background:#1f2937;color:#fff;padding:4px 8px;border-radius:999px;font-size:12px;white-space:nowrap}
+.history-body{font-size:14px;line-height:1.55;white-space:pre-wrap;color:#334155;background:#f8fafc;border-radius:12px;padding:10px}
+.history-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+.history-actions button{min-height:40px;font-size:13px;padding:8px 10px;border-radius:12px}
+.member-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#f8fafc;border-radius:14px;padding:9px;margin-top:8px}
+.member-label{font-weight:850;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.member-row button{min-height:38px;padding:8px 11px;font-size:13px;border-radius:11px}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 14px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:20;white-space:nowrap}
+.toast.show{opacity:1}
+@media (min-width:520px){.buttons,.two-col{grid-template-columns:1fr 1fr}.score-row{grid-template-columns:72px minmax(0,1fr)}}
+details.enhanced-details{overflow:hidden}
+details.enhanced-details>summary{-webkit-tap-highlight-color:transparent}
+.details-content{overflow:hidden;will-change:height,opacity,transform}
+.details-content-inner{padding-top:10px}
+details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transform:translateY(-4px)}
+.auto-grid{display:grid;grid-template-columns:52px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+.auto-head{font-size:12px;color:var(--muted);font-weight:900;padding:0 2px 4px}
+.auto-name{font-weight:900;font-size:15px;white-space:nowrap}
+.auto-input{min-height:44px;padding:10px 9px}
+.auto-result{background:var(--soft);border:1px solid #edf2f7;border-radius:16px;padding:12px;margin-top:12px}
+.auto-detail{font-size:13px;line-height:1.65;white-space:pre-wrap;color:#334155}
+@media(max-width:390px){.auto-grid{grid-template-columns:46px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:6px}.auto-input{font-size:14px;padding:9px 7px}}
+
+.mt-panel{background:#f8fafc;border:1px solid #edf2f7;border-radius:16px;padding:12px;margin-top:12px}
+.mt-card{border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:10px;margin-top:8px}
+.mt-title{font-weight:900;margin-bottom:6px}.mt-players{font-size:13px;color:#334155;line-height:1.6}
+.mt-empty{font-size:13px;color:var(--muted);line-height:1.5;margin-top:8px}
+.narikiri-badge{display:inline-block;background:#dcfce7;color:#166534;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:900;margin-left:6px}
+
+.ride-box{margin-top:10px}.ride-title{font-weight:900;margin:8px 0}.ride-row{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;align-items:center;margin-top:8px}.ride-user{font-weight:900;color:#334155}.ride-note{font-size:12px;color:var(--muted);margin-top:8px}.score-status{font-size:13px;color:#334155;background:#eef2ff;border:1px solid #dbeafe;border-radius:12px;padding:9px 10px;margin-top:8px;line-height:1.5}
+
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="app-header">
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v2.5.3</span></h1>
+    <p id="appSubTitle" class="sub">v2.5.3：JSON読込安定化・スコア自動反映の正式版。</p>
+  </div>
+  <div id="status" class="status">JS起動OK：v2.5.3</div>
+
+  <section class="card"><details open><summary>貼り付け入力</summary><div class="small">前回までの結果を貼り付けると、自動計算欄の「既存合計」に反映される。</div><textarea id="freeInput" placeholder="たい：510 -6230&#10;まさ：+5510 -340&#10;ゆひ：+20550 6100&#10;くり：-26570 470"></textarea><div class="buttons"><button class="secondary" type="button" onclick="applyFreeInputToBase()">既存合計に反映</button><button class="secondary" type="button" onclick="clearFreeInput()">貼付欄クリア</button></div></details></section>
+
+  <section class="card">
+    <h2>対局自動計算</h2>
+    <div class="small">テンピン / 25,000点持ち30,000点返し / ウマ10-30 / チップ500円</div>
+    <div class="mt-panel">
+      <div class="small" style="margin-top:0;font-weight:900;color:#334155;">Mトーナメントモード</div>
+      <div id="mtDataStatus" class="small">Mトーナメントデータを読み込み中...</div>
+      <div class="buttons" style="margin-top:8px;"><button class="secondary" type="button" onclick="setTodayMTournament()">今日のMトナメ</button></div>
+      <div class="two-col" style="margin-top:8px;">
+        <div><div class="small">カレンダー日付</div><input id="mtDate" type="date" oninput="renderMTournament()" onchange="renderMTournament()"></div>
+        <div><div class="small">試合</div><select id="mtMatch" onchange="onMTMatchChange()"><option value="">日付を選択</option></select></div>
+      </div>
+      <div id="mtRideBox" class="ride-box">
+        <div class="ride-title">誰が誰に乗るか</div>
+        <div id="mtRideSelectors"></div>
+        <div id="mtRideError" class="error" style="display:none"></div>
+        <div class="buttons" style="margin-top:8px;"><button class="secondary" type="button" onclick="applyMTournamentScores()">スコア再反映</button></div>
+        <div id="mtScoreStatus" class="score-status">試合と4人分の乗り先を選ぶと、JSONに登録済みのスコアを自動反映する。</div>
+        <div class="ride-note">選んだ選手は、結果入力・履歴に反映される。</div>
+      </div>
+      <div id="mtScheduleView" class="mt-empty">日付を選ぶと、その日のMトーナメント対局が表示される。</div>
+    </div>
+    <div class="auto-grid" style="margin-top:12px;">
+      <div></div><div class="auto-head">スコア</div><div class="auto-head">チップ</div><div class="auto-head">既存合計</div>
+      <div class="auto-name">たい</div><input id="auto-score-たい" class="auto-input" inputmode="decimal" placeholder="+62.3" oninput="autoCalculate()"><input id="auto-chip-たい" class="auto-input" inputmode="text" placeholder="+3" oninput="autoCalculate()"><input id="auto-base-たい" class="auto-input" inputmode="text" placeholder="0" oninput="autoCalculate()">
+      <div class="auto-name">まさ</div><input id="auto-score-まさ" class="auto-input" inputmode="decimal" placeholder="+18.4" oninput="autoCalculate()"><input id="auto-chip-まさ" class="auto-input" inputmode="text" placeholder="-1" oninput="autoCalculate()"><input id="auto-base-まさ" class="auto-input" inputmode="text" placeholder="0" oninput="autoCalculate()">
+      <div class="auto-name">ゆひ</div><input id="auto-score-ゆひ" class="auto-input" inputmode="decimal" placeholder="-21.1" oninput="autoCalculate()"><input id="auto-chip-ゆひ" class="auto-input" inputmode="text" placeholder="0" oninput="autoCalculate()"><input id="auto-base-ゆひ" class="auto-input" inputmode="text" placeholder="0" oninput="autoCalculate()">
+      <div class="auto-name">くり</div><input id="auto-score-くり" class="auto-input" inputmode="decimal" placeholder="-59.6" oninput="autoCalculate()"><input id="auto-chip-くり" class="auto-input" inputmode="text" placeholder="-2" oninput="autoCalculate()"><input id="auto-base-くり" class="auto-input" inputmode="text" placeholder="0" oninput="autoCalculate()">
+    </div>
+    <div class="buttons"><button class="primary" type="button" onclick="autoCalculateAndCopy()">計算してコピー</button><button class="secondary" type="button" onclick="saveHistory()">履歴へ保存</button><button class="secondary" type="button" onclick="clearAutoInputs()">自動計算欄クリア</button></div><div id="saveError" class="error" style="display:none"></div>
+    <details class="auto-result"><summary>計算内訳</summary><div id="autoDetail" class="auto-detail details-content-inner">スコアを入力すると自動計算される。</div></details>
+  </section>
+
+  <div id="scoreList" class="score-list" style="display:none"></div>
+  
+
+  <section class="card"><h2>結果</h2><div id="result">まだ計算してないよ</div><div id="check" class="small"></div></section>
+
+  <pre id="copyText" style="display:none"></pre>
+
+  <section class="card"><details open><summary>履歴一覧</summary><div id="historyList"></div><div class="buttons"><button class="danger" type="button" onclick="clearAllHistory()">履歴を全削除</button></div></details></section>
+
+  <section class="card"><details><summary>メンバー設定</summary><div class="small">コピー表示順</div><select id="sortMode" onchange="calculateOnly()"><option value="score">プラス順</option><option value="member">名前順</option></select><div class="small">選んだ順番でコピー時の並びが変わる。</div><div class="small" style="margin-top:14px;">追加・削除は画面上に反映される。</div><div id="memberList"></div><div style="margin-top:12px;"><input id="newMemberName" placeholder="追加する名前 例：たろう"><div class="buttons"><button class="primary" type="button" onclick="addMember()">追加</button><button class="danger" type="button" onclick="resetMembers()">初期メンバーに戻す</button></div></div></details></section>
+</div>
+<div id="toast" class="toast">コピーしたよ</div>
+<script>
+var HISTORY_KEY='mahjong_tool_history_v120';
+
+var APP_CONFIG={name:'麻雀収支ツール',version:'2.5.3',build:'252'};
+var APP_CONFIG_LOADED=false;
+var MTOURNAMENT_SCHEDULE={};
+var MTOURNAMENT_MATCHES_BY_DATE={};
+var MTOURNAMENT_DATA_LOADED=false;
+var MTOURNAMENT_DATA_META={dates:0,matches:0,scoreMatches:0};
+var JSON_DEBUG={url:'./mtournament.json',http:'未実行',ok:false,error:'',loadedAt:'',rawType:'',dateKeys:[],sample:'',selected:''};
+function setMTDataStatus(message){var status=document.getElementById('mtDataStatus');if(status)status.textContent=message}
+
+async function loadAppConfig(){
+  try{
+    var res=await fetch('./app.json?ts='+Date.now(),{cache:'no-store'});
+    if(!res.ok)throw new Error('app.json '+res.status);
+    var data=await res.json();
+    APP_CONFIG=data||APP_CONFIG;
+    APP_CONFIG_LOADED=true;
+    applyAppConfig();
+  }catch(e){
+    console.warn('app.json load failed',e);
+    APP_CONFIG_LOADED=false;
+    applyAppConfig();
+  }
+}
+function applyAppConfig(){
+  var version=APP_CONFIG.version||'2.5.3';
+  var build=APP_CONFIG.build||'252';
+  var badge=document.getElementById('appVersionBadge');
+  var sub=document.getElementById('appSubTitle');
+  var status=document.getElementById('status');
+  document.title=(APP_CONFIG.name||'麻雀収支ツール')+' v'+version;
+  if(badge)badge.textContent='v'+version;
+  if(sub)sub.textContent='v'+version+'：JSON読込安定化・スコア自動反映の正式版。build '+build;
+  if(status)status.textContent='JS起動OK：v'+version+(APP_CONFIG_LOADED?' / app.json読込OK':' / app.json未読込（内蔵設定で起動）');
+}
+
+
+function setJSONDebug(obj){for(var k in obj){JSON_DEBUG[k]=obj[k]}}
+function updateJSONDebug(){}
+function runJSONDebug(){showToast('更新したよ')}
+
+async function loadMTournamentData(){
+  try{
+    setMTDataStatus('Mトーナメントデータを読み込み中...');
+    var jsonUrl='./mtournament.json?ts='+Date.now();
+    setJSONDebug({url:jsonUrl,http:'取得中',ok:false,error:'',loadedAt:new Date().toLocaleString()});
+    var res=await fetch(jsonUrl,{cache:'no-store'});
+    setJSONDebug({http:String(res.status)+' '+(res.statusText||'')});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    var data=await res.json();
+    setJSONDebug({rawType:(Array.isArray(data)?'array':typeof data)});
+    var normalized=normalizeMTournamentData(data);
+    MTOURNAMENT_SCHEDULE=normalized.tablesByDate;
+    MTOURNAMENT_MATCHES_BY_DATE=normalized.matchesByDate;
+    MTOURNAMENT_DATA_META=normalized.meta;
+    MTOURNAMENT_DATA_LOADED=true;
+    setMTDataStatus('Mトーナメントデータ読込OK：'+normalized.meta.dates+'日 / '+normalized.meta.matches+'試合');
+    setJSONDebug({ok:true,error:'',dateKeys:Object.keys(MTOURNAMENT_MATCHES_BY_DATE).slice(0,20)});
+  }catch(e){
+    console.error('mtournament.json load failed',e);
+    MTOURNAMENT_SCHEDULE={};
+    MTOURNAMENT_MATCHES_BY_DATE={};
+    MTOURNAMENT_DATA_META={dates:0,matches:0,scoreMatches:0};
+    MTOURNAMENT_DATA_LOADED=false;
+    setMTDataStatus('Mトーナメントデータを読み込めませんでした：'+(e&&e.message?e.message:'JSONエラー'));
+    setJSONDebug({ok:false,error:(e&&e.message?e.message:'JSONエラー')});
+  }
+  renderMTournament();
+}
+function getTodayString(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+day}
+function setTodayMTournament(){var input=document.getElementById('mtDate');input.value=getTodayString();renderMTournament();showToast('今日のMトナメを表示したよ')}
+function normalizeMTDate(value){
+  var s=String(value||'').replace(/\//g,'-').trim();
+  var m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(!m)return s;
+  return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+}
+function normalizeScoreMap(scores){
+  var out={},k,v,n;
+  if(!scores||typeof scores!=='object'||Array.isArray(scores))return out;
+  for(k in scores){
+    v=scores[k];
+    if(v===undefined||v===null||v==='')continue;
+    if(typeof v==='object')continue;
+    n=Number(String(v).replace(/[＋]/g,'+').replace(/[−ー―－]/g,'-'));
+    out[k]=isNaN(n)?v:n;
+  }
+  return out;
+}
+function objectLooksLikeScoreMap(obj){
+  var k,has=false;
+  if(!obj||typeof obj!=='object'||Array.isArray(obj))return false;
+  for(k in obj){has=true;if(obj[k]&&typeof obj[k]==='object')return false}
+  return has;
+}
+function getScoresFromTable(table,id,game){
+  var scores=(table&&(table.scores||table.results||table.score))||{};
+  var candidates=[id,String(game),'game'+game,'Game'+game,'第'+game+'試合',(table&&table.table?table.table+'-'+game:'')];
+  var i,key;
+  for(i=0;i<candidates.length;i++){
+    key=candidates[i];
+    if(key&&scores[key]&&typeof scores[key]==='object')return normalizeScoreMap(scores[key]);
+  }
+  if(scores.players&&typeof scores.players==='object')return normalizeScoreMap(scores.players);
+  if(scores.result&&typeof scores.result==='object')return normalizeScoreMap(scores.result);
+  if(objectLooksLikeScoreMap(scores))return normalizeScoreMap(scores);
+  return {};
+}
+function normalizeMTournamentData(data){
+  var source=(data&&data.schedule)?data.schedule:data;
+  var matchesByDate={},tablesByDate={},meta={dates:0,matches:0,scoreMatches:0};
+  function addMatch(date,match){
+    date=normalizeMTDate(date);
+    if(!date||!match||!match.id)return;
+    if(!matchesByDate[date])matchesByDate[date]=[];
+    match.players=match.players||Object.keys(match.scores||{});
+    match.scores=normalizeScoreMap(match.scores||{});
+    matchesByDate[date].push(match);
+  }
+  function addTable(date,table){
+    date=normalizeMTDate(date);
+    if(!date||!table)return;
+    if(!tablesByDate[date])tablesByDate[date]=[];
+    tablesByDate[date].push(table);
+    if(Array.isArray(table.games)){
+      for(var gi=0;gi<table.games.length;gi++){
+        var g=table.games[gi],gid=g.id||g.matchId||((table.table||table.name||'')+'-'+(gi+1));
+        addMatch(date,{id:gid,stage:g.stage||table.stage||'',table:g.table||table.table||'',game:g.game||gi+1,players:g.players||table.players||Object.keys(g.scores||{}),raw:g,scores:g.scores||{}});
+      }
+      return;
+    }
+    var tableName=table.table||table.name||table.id||'';
+    if(table.id&&/-\d+$/.test(table.id)){
+      addMatch(date,{id:table.id,stage:table.stage||'',table:tableName.replace(/-\d+$/,''),game:table.game||'',players:table.players||Object.keys(table.scores||{}),raw:table,scores:getScoresFromTable(table,table.id,table.game||1)});
+      return;
+    }
+    for(var game=1;game<=2;game++){
+      var id=tableName?tableName+'-'+game:String(game);
+      addMatch(date,{id:id,stage:table.stage||'',table:tableName,game:game,players:table.players||Object.keys(getScoresFromTable(table,id,game)),raw:table,scores:getScoresFromTable(table,id,game)});
+    }
+  }
+  if(Array.isArray(source)){
+    for(var a=0;a<source.length;a++)addTable(source[a].date||source[a].day||source[a].matchDate,source[a]);
+  }else if(source&&typeof source==='object'){
+    for(var date in source){
+      var value=source[date];
+      if(Array.isArray(value)){for(var i=0;i<value.length;i++)addTable(date,value[i]);}
+      else if(value&&Array.isArray(value.matches)){for(var j=0;j<value.matches.length;j++)addTable(date,value.matches[j]);}
+      else if(value&&Array.isArray(value.tables)){for(var t=0;t<value.tables.length;t++)addTable(date,value.tables[t]);}
+      else if(value&&typeof value==='object')addTable(date,value);
+    }
+  }
+  for(var d in matchesByDate){
+    meta.dates++;
+    matchesByDate[d].sort(function(a,b){return String(a.id).localeCompare(String(b.id),'ja')});
+    for(var m=0;m<matchesByDate[d].length;m++){
+      meta.matches++;
+      if(hasScoreData(matchesByDate[d][m]))meta.scoreMatches++;
+    }
+  }
+  return {matchesByDate:matchesByDate,tablesByDate:tablesByDate,meta:meta};
+}
+function buildMTMatches(date){date=normalizeMTDate(date);return (MTOURNAMENT_MATCHES_BY_DATE[date]||[]).slice()}
+function getScoreStatusEl(){return document.getElementById('mtScoreStatus')}
+function setScoreStatus(message){var el=getScoreStatusEl();if(el)el.textContent=message}
+function hasScoreData(match){return !!(match&&match.scores&&Object.keys(match.scores).length)}
+function renderMTournament(){
+  var rawDate=document.getElementById('mtDate').value,date=normalizeMTDate(rawDate),sel=document.getElementById('mtMatch'),view=document.getElementById('mtScheduleView'),matches=buildMTMatches(date),html='',i;
+  sel.innerHTML='';sel.disabled=false;
+  if(!MTOURNAMENT_DATA_LOADED){sel.innerHTML='<option value="">データ読込中</option>';sel.disabled=true;view.className='mt-empty';view.textContent='Mトーナメントデータを読み込み中です。';renderRideSelectors([],true);return}
+  if(!date){sel.innerHTML='<option value="">日付を選択</option>';view.className='mt-empty';view.textContent='日付を選ぶと、その日のMトーナメント対局が表示される。';renderRideSelectors([],true);syncMTToSaveInfo();return}
+  if(matches.length===0){sel.innerHTML='<option value="">対象試合なし</option>';sel.disabled=true;view.className='mt-empty';view.textContent='この日付のMトーナメント対局は未登録です。';renderRideSelectors([],true);syncMTToSaveInfo();return}
+  sel.innerHTML='<option value="">選択してください</option>';
+  for(i=0;i<matches.length;i++){sel.innerHTML+='<option value="'+escapeHtml(matches[i].id)+'">'+escapeHtml((matches[i].stage?matches[i].stage+' ':'')+matches[i].id)+'</option>'}
+  // v2.5.3: 下部の試合カード一覧は表示せず、試合選択プルダウンに集約。
+  view.className='mt-hidden';
+  view.innerHTML='';
+  renderRideSelectors([],true);syncMTToSaveInfo();setScoreStatus('試合を選ぶと乗り先を選択できる。スコアがある場合は自動反映する。')
+}
+function getSelectedMTMatch(){var date=normalizeMTDate(document.getElementById('mtDate').value),id=document.getElementById('mtMatch').value,matches=buildMTMatches(date);for(var i=0;i<matches.length;i++)if(matches[i].id===id)return matches[i];return null}
+function onMTMatchChange(){var match=getSelectedMTMatch();renderRideSelectors(match?match.players:[],!match);setScoreStatus(match?'4人分の乗り先を選ぶと、スコアがある場合は自動反映するよ。':'試合を選択してね。');syncMTToSaveInfo();autoCalculate();tryAutoApplyMTournamentScores()}
+function renderRideSelectors(players,disabled){var box=document.getElementById('mtRideSelectors'),members=getAutoMembers(),html='',i,j;if(!box)return;for(i=0;i<members.length;i++){html+='<div class="ride-row"><div class="ride-user">'+escapeHtml(members[i])+'</div><select id="mtRide-'+escapeHtml(members[i])+'" onchange="onRideSelectionChange()" '+(disabled?'disabled':'')+'>';if(!players||!players.length){html+='<option value="">試合を選択</option>'}else{html+='<option value="">選択してください</option>';for(j=0;j<players.length;j++)html+='<option value="'+escapeHtml(players[j])+'">'+escapeHtml(players[j])+'</option>'}html+='</select></div>'}box.innerHTML=html;validateRideSelections(false)}
+function getRideMap(){var members=getAutoMembers(),map={},el,i;for(i=0;i<members.length;i++){el=document.getElementById('mtRide-'+members[i]);map[members[i]]=el?el.value:''}return map}
+function rideMapText(map){var members=getAutoMembers(),lines=[],i;map=map||getRideMap();for(i=0;i<members.length;i++){if(map[members[i]])lines.push(members[i]+' → '+map[members[i]])}return lines.join('\\n')}
+function syncMTToSaveInfo(){}
+function onRideSelectionChange(){validateRideSelections(false);setScoreStatus('乗り先を変更したよ。4人分そろうとJSONのスコアを自動反映する。');autoCalculate();tryAutoApplyMTournamentScores()}
+function validateRideSelections(showMessage){var map=getRideMap(),seen={},dup=[],selected=0,member;for(member in map){var v=map[member];if(!v)continue;selected++;if(seen[v]&&!dup.includes(v))dup.push(v);seen[v]=true}var err=document.getElementById('mtRideError');if(dup.length){if(err){err.textContent='乗り先選手が重複しています：'+dup.join('、');err.style.display='block'}if(showMessage)showToast('乗り先が重複してるよ');return false}if(err){err.textContent='';err.style.display='none'}return true}
+function canAutoApplyMTournamentScores(){var match=getSelectedMTMatch(),map=getRideMap(),members=getAutoMembers(),i;if(!match||!hasScoreData(match))return false;if(!validateRideSelections(false))return false;for(i=0;i<members.length;i++){if(!map[members[i]])return false}return true}
+function tryAutoApplyMTournamentScores(){if(!canAutoApplyMTournamentScores())return;applyMTournamentScores(true)}
+function applyMTournamentScores(silent){var match=getSelectedMTMatch(),map=getRideMap(),members=getAutoMembers(),missing=[],applied=0,i;if(!match){if(!silent){showToast('試合を選択してね');setScoreStatus('試合を選択してください。')}return}if(!validateRideSelections(!silent))return;if(!hasScoreData(match)){if(!silent){showToast('スコア未登録だよ');setScoreStatus('この試合は mtournament.json にスコアが未登録です。手入力してね。')}return}for(i=0;i<members.length;i++){var member=members[i],player=map[member],scoreEl=document.getElementById('auto-score-'+member);if(!player){missing.push(member+'の乗り先未選択');continue}if(match.scores[player]===undefined||match.scores[player]===null||match.scores[player]===''){missing.push(player);continue}if(scoreEl){scoreEl.value=String(match.scores[player]);applied++}}autoCalculate();if(missing.length){setScoreStatus('一部スコアが見つかりません：'+missing.join('、'));if(!silent)showToast('一部だけ反映したよ')}else{setScoreStatus('JSONのスコアを4人分自動反映しました。あとはチップを入力してね。');if(!silent)showToast('スコア反映したよ')}}
+
+function normalizeText(text){return String(text).replace(/[＋]/g,'+').replace(/[−ー―－]/g,'-').replace(/[：]/g,':').replace(/,/g,'')}
+function trimText(text){return String(text).replace(/^\s+|\s+$/g,'')}
+function parseNumbers(text){var m=normalizeText(text).match(/[+-]?\d+(?:\.\d+)?/g),a=[],i;if(!m)return a;for(i=0;i<m.length;i++)a.push(Number(m[i]));return a}
+function getRows(){return document.getElementById('scoreList').getElementsByClassName('score-row')}
+function calculateOnly(){var rows=getRows(),entries=[],i,j;for(i=0;i<rows.length;i++){var name=rows[i].getAttribute('data-name'),input=rows[i].getElementsByTagName('input')[0],nums=parseNumbers(input.value),total=0;for(j=0;j<nums.length;j++)total+=nums[j];entries.push({name:name,total:total,order:i,raw:input.value})}renderResult(entries);renderCopy(entries);return entries}
+function renderResult(entries){var sorted=entries.slice(0),html='',grand=0,i;sorted.sort(function(a,b){return b.total-a.total});for(i=0;i<sorted.length;i++){var item=sorted[i],cls=item.total>0?'plus':item.total<0?'minus':'zero',sign=item.total>0?'+':'';grand+=item.total;html+='<div class="result-row"><span>'+escapeHtml(item.name)+'</span><span class="'+cls+'">'+sign+item.total+'</span></div>'}var gcls=grand>0?'plus':grand<0?'minus':'zero',gsign=grand>0?'+':'';html+='<div class="result-row"><span>合計</span><span class="'+gcls+'">'+gsign+grand+'</span></div>';document.getElementById('result').innerHTML=html;document.getElementById('check').innerHTML=grand===0?'<span class="check-ok">検算OK：合計は0</span>':'<span class="check-ng">検算注意：合計が'+gsign+grand+'になってる</span>'}
+function renderCopy(entries){var sorted=entries.slice(0),mode=document.getElementById('sortMode').value,lines=[],i;if(mode==='score')sorted.sort(function(a,b){return b.total-a.total});else sorted.sort(function(a,b){return a.order-b.order});for(i=0;i<sorted.length;i++)lines.push(sorted[i].name+' '+(sorted[i].total>0?'+':'')+sorted[i].total);document.getElementById('copyText').textContent=lines.join('\n')}
+function calculateAndCopy(){calculateOnly();copyResult()}
+function copyResult(){var text=document.getElementById('copyText').textContent;if(!trimText(text))return;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){showToast('コピーしたよ')}).catch(function(){fallbackCopy(text)})}else fallbackCopy(text)}
+function fallbackCopy(text){var temp=document.createElement('textarea');temp.value=text;temp.style.position='fixed';temp.style.left='-9999px';document.body.appendChild(temp);temp.focus();temp.select();document.execCommand('copy');document.body.removeChild(temp);showToast('コピーしたよ')}
+function saveHistory(){var autoResult=autoCalculate();if(!autoResult)return;var date=normalizeMTDate(document.getElementById('mtDate').value),slot=document.getElementById('mtMatch').value,error=document.getElementById('saveError');if(error){error.textContent='';error.style.display='none'}if(!date||!slot){if(error){error.textContent='日付と試合を選択してください。';error.style.display='block'}else showToast('日付と試合を選択してね');return}if(!validateRideSelections(true)){if(error){error.textContent='乗り先選手が重複しています。';error.style.display='block'}return}var entries=calculateOnly(),histories=loadHistory(),key=date+'_'+slot,idx=-1,i,rideMap=getRideMap(),rideText=rideMapText(rideMap);for(i=0;i<histories.length;i++)if(histories[i].key===key)idx=i;if(idx>=0&&!confirm(date+' '+slot+' は既に保存されています。上書きしますか？'))return;var item={key:key,date:date,slot:slot,rideMap:rideMap,rideText:rideText,narikiri:rideText,sortMode:document.getElementById('sortMode').value,savedAt:new Date().toISOString(),entries:entries,copyText:document.getElementById('copyText').textContent};if(idx>=0)histories[idx]=item;else histories.push(item);saveHistoryList(histories);renderHistory();showToast(idx>=0?'履歴を上書きしたよ':'履歴に保存したよ')}
+function loadHistory(){try{var data=JSON.parse(localStorage.getItem(HISTORY_KEY));if(data&&data.length)return data}catch(e){}return[]}
+function saveHistoryList(histories){try{localStorage.setItem(HISTORY_KEY,JSON.stringify(histories))}catch(e){alert('履歴保存に失敗しました。')}}
+function monthLabel(ym){var p=ym.split('-');return p[0]+'年'+Number(p[1])+'月'}
+function getMonthKey(date){return String(date).slice(0,7)}
+function monthTotal(items){var total=0,i,j;for(i=0;i<items.length;i++)for(j=0;j<items[i].entries.length;j++)total+=Number(items[i].entries[j].total||0);return total}
+function renderHistory(){var histories=loadHistory(),box=document.getElementById('historyList'),groups={},months=[],html='',i;histories.sort(function(a,b){if(a.date===b.date)return b.slot>a.slot?1:-1;return b.date>a.date?1:-1});if(histories.length===0){box.innerHTML='<div class="small">まだ履歴はありません。</div>';return}for(i=0;i<histories.length;i++){var ym=getMonthKey(histories[i].date);if(!groups[ym]){groups[ym]=[];months.push(ym)}groups[ym].push(histories[i])}months.sort(function(a,b){return b>a?1:-1});for(i=0;i<months.length;i++){var ymKey=months[i],items=groups[ymKey],mt=monthTotal(items),mc=mt>0?'plus':mt<0?'minus':'zero',ms=mt>0?'+':'';html+='<details class="month-block" open><summary class="month-summary"><span>'+monthLabel(ymKey)+'</span><span class="month-meta">'+items.length+'件 / <span class="'+mc+'">'+ms+mt+'</span></span></summary>';for(var k=0;k<items.length;k++){html+='<div class="history-item"><div class="history-head"><div class="history-date">'+escapeHtml(items[k].date)+((items[k].rideText||items[k].narikiri)?' <span class="narikiri-badge">乗り先あり</span>':'')+'</div><div class="history-badge">'+escapeHtml(items[k].slot)+'</div></div><div class="history-body">'+escapeHtml((items[k].rideText?'【乗り先】\n'+items[k].rideText+'\n\n':'')+items[k].copyText)+'</div><div class="history-actions"><button class="secondary" type="button" onclick="restoreHistory(\''+escapeJs(items[k].key)+'\')">復元</button><button class="danger" type="button" onclick="deleteHistory(\''+escapeJs(items[k].key)+'\')">削除</button></div></div>'}html+='</details>'}box.innerHTML=html}
+function restoreHistory(key){var histories=loadHistory(),item=null,i;for(i=0;i<histories.length;i++)if(histories[i].key===key)item=histories[i];if(!item)return;var mtDate=document.getElementById('mtDate'),mtMatch=document.getElementById('mtMatch');if(mtDate){mtDate.value=item.date;renderMTournament()}if(mtMatch){mtMatch.value=item.slot;onMTMatchChange()}if(item.rideMap){for(var member in item.rideMap){var sel=document.getElementById('mtRide-'+member);if(sel)sel.value=item.rideMap[member]||''}}validateRideSelections(false);document.getElementById('sortMode').value=item.sortMode||'score';var list=document.getElementById('scoreList');list.innerHTML='';for(i=0;i<item.entries.length;i++){var row=createMemberRow(item.entries[i].name);row.getElementsByTagName('input')[0].value=item.entries[i].raw||''}renderMemberList();calculateOnly();showToast('履歴を復元したよ')}
+function deleteHistory(key){if(!confirm('この履歴を削除しますか？'))return;var histories=loadHistory(),next=[],i;for(i=0;i<histories.length;i++)if(histories[i].key!==key)next.push(histories[i]);saveHistoryList(next);renderHistory();showToast('履歴を削除したよ')}
+function clearAllHistory(){if(!confirm('履歴をすべて削除しますか？'))return;saveHistoryList([]);renderHistory();showToast('履歴を全削除したよ')}
+function clearScores(){var rows=getRows();for(var i=0;i<rows.length;i++)rows[i].getElementsByTagName('input')[0].value='';document.getElementById('result').textContent='まだ計算してないよ';document.getElementById('copyText').textContent='';document.getElementById('check').textContent=''}
+function clearFreeInput(){document.getElementById('freeInput').value=''}
+function applyFreeInput(){var text=normalizeText(document.getElementById('freeInput').value),lines=text.split(/\n+/),i;for(i=0;i<lines.length;i++){var line=trimText(lines[i]);if(!line)continue;var match=line.match(/^([^\s:]+)\s*:?\s*(.*)$/);if(!match)continue;var name=trimText(match[1]),values=trimText(match[2]),row=findRowByName(name);if(!row)row=createMemberRow(name);row.getElementsByTagName('input')[0].value=values}renderMemberList();calculateOnly();showToast('固定欄に反映したよ')}
+function findRowByName(name){var rows=getRows();for(var i=0;i<rows.length;i++)if(rows[i].getAttribute('data-name')===name)return rows[i];return null}
+function createMemberRow(name){var list=document.getElementById('scoreList'),row=document.createElement('div'),label=document.createElement('div'),input=document.createElement('input');row.className='score-row';row.setAttribute('data-name',name);label.className='score-name';label.appendChild(document.createTextNode(name));input.className='score-input';input.setAttribute('inputmode','text');input.setAttribute('autocomplete','off');input.setAttribute('placeholder','+1000 -2000 など');input.oninput=function(){calculateOnly()};row.appendChild(label);row.appendChild(input);list.appendChild(row);return row}
+function addMember(){var input=document.getElementById('newMemberName'),name=trimText(input.value);if(!name)return;if(findRowByName(name)){showToast('すでにいる名前だよ');return}createMemberRow(name);input.value='';renderMemberList();calculateOnly();showToast('メンバー追加したよ')}
+function removeMemberByName(name){var row=findRowByName(name),list=document.getElementById('scoreList');if(!row)return;if(getRows().length<=1){showToast('1人は残してね');return}list.removeChild(row);renderMemberList();calculateOnly();showToast('メンバー削除したよ')}
+function resetMembers(){var list=document.getElementById('scoreList');list.innerHTML='';createMemberRow('たい');createMemberRow('まさ');createMemberRow('ゆひ');createMemberRow('くり');renderMemberList();clearScores();calculateOnly();showToast('初期メンバーに戻したよ')}
+function renderMemberList(){var rows=getRows(),box=document.getElementById('memberList'),html='';for(var i=0;i<rows.length;i++){var name=rows[i].getAttribute('data-name');html+='<div class="member-row"><div class="member-label">'+escapeHtml(name)+'</div><button class="danger" type="button" onclick="removeMemberByName(\''+escapeJs(name)+'\')">削除</button></div>'}box.innerHTML=html}
+function showToast(message){var toast=document.getElementById('toast');toast.textContent=message;toast.className='toast show';setTimeout(function(){toast.className='toast'},1400)}
+function getAutoMembers(){return ['たい','まさ','ゆひ','くり']}
+function autoGetNumber(id){var el=document.getElementById(id);if(!el)return 0;var nums=parseNumbers(el.value);return nums.length?nums[0]:0}
+function signed(num){num=Number(num||0);return (num>0?'+':'')+num}
+function autoCalculate(){if(!validateRideSelections(false))return null;var members=getAutoMembers(),data=[],filled=0,i;for(i=0;i<members.length;i++){var name=members[i],scoreEl=document.getElementById('auto-score-'+name),scoreText=scoreEl?trimText(scoreEl.value):'',score=autoGetNumber('auto-score-'+name),chip=autoGetNumber('auto-chip-'+name),base=autoGetNumber('auto-base-'+name);if(scoreText!=='')filled++;data.push({name:name,score:score,chip:chip,base:base,rank:0,pointMoney:0,oka:0,uma:0,chipMoney:chip*500,gameTotal:0,finalTotal:0})}if(filled===0){document.getElementById('autoDetail').textContent='スコアを入力すると自動計算される。';return null}if(filled<4){document.getElementById('autoDetail').textContent='4人分のスコアを入力してください。';return null}var ranked=data.slice(0).sort(function(a,b){return b.score-a.score}),umaList=[3000,1000,-1000,-3000];for(i=0;i<ranked.length;i++){ranked[i].rank=i+1;ranked[i].uma=umaList[i];ranked[i].pointMoney=Math.round(ranked[i].score*100);ranked[i].oka=0;ranked[i].uma=0;ranked[i].gameTotal=ranked[i].pointMoney+ranked[i].chipMoney;ranked[i].finalTotal=ranked[i].gameTotal+ranked[i].base}var byName={};for(i=0;i<ranked.length;i++)byName[ranked[i].name]=ranked[i];var detail=[],finalEntries=[],gameSum=0,finalSum=0;for(i=0;i<members.length;i++){var item=byName[members[i]];finalEntries.push({name:item.name,total:item.finalTotal,order:i});gameSum+=item.gameTotal;finalSum+=item.finalTotal;var ride=(getRideMap()[item.name]?'（'+getRideMap()[item.name]+'）':'');detail.push(item.name+ride+'：スコア '+signed(item.pointMoney)+' / チップ '+signed(item.chipMoney)+' / 対局 '+signed(item.gameTotal)+' / 既存 '+signed(item.base)+' / 最終 '+signed(item.finalTotal))}finalEntries.sort(function(a,b){return b.total-a.total});document.getElementById('autoDetail').textContent=detail.join('\n')+'\n\n対局分合計：'+signed(gameSum)+'\n最終合計：'+signed(finalSum);applyAutoResultToMain(finalEntries,byName);return {entries:finalEntries,byName:byName}}
+function applyAutoResultToMain(finalEntries,byName){var list=document.getElementById('scoreList');list.innerHTML='';var members=getAutoMembers();for(var i=0;i<members.length;i++){var name=members[i],row=createMemberRow(name);row.getElementsByTagName('input')[0].value=String(byName[name].finalTotal)}renderMemberList();calculateOnly()}
+function autoCalculateAndCopy(){if(!validateRideSelections(true))return;var result=autoCalculate();if(!result)return;copyResult()}
+function clearAutoInputs(){var m=getAutoMembers();for(var i=0;i<m.length;i++){document.getElementById('auto-score-'+m[i]).value='';document.getElementById('auto-chip-'+m[i]).value='';document.getElementById('auto-base-'+m[i]).value=''}document.getElementById('autoDetail').textContent='スコアを入力すると自動計算される。'}
+function applyFreeInputToBase(){var text=normalizeText(document.getElementById('freeInput').value),lines=text.split(/\n+/),i;for(i=0;i<lines.length;i++){var line=trimText(lines[i]);if(!line)continue;var match=line.match(/^([^\s:]+)\s*:?\s*(.*)$/);if(!match)continue;var name=trimText(match[1]);var values=parseNumbers(match[2]);var value=values.length?values[0]:0;var target=document.getElementById('auto-base-'+name);if(target)target.value=String(value)}autoCalculate();showToast('既存合計に反映したよ')}
+function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
+function escapeJs(str){return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
+function setupSmoothDetails(){}
+if(document.getElementById('mtDate')){document.getElementById('mtDate').value=getTodayString()}resetMembers();renderMemberList();renderHistory();calculateOnly();setupSmoothDetails();loadAppConfig();loadMTournamentData();
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=252').catch(function(){})})}
+
+document.addEventListener('DOMContentLoaded',function(){
+  var mtDate=document.getElementById('mtDate');
+  if(mtDate){
+    mtDate.addEventListener('input',renderMTournament);
+    mtDate.addEventListener('change',renderMTournament);
+    if(MTOURNAMENT_DATA_LOADED)renderMTournament();
+  }
+});
+
+</script>
+</body>
+</html>

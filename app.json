@@ -1,0 +1,8 @@
+{
+  "name": "麻雀収支ツール",
+  "version": "2.5.4",
+  "build": "254",
+  "releaseDate": "2026-07-04",
+  "dataVersion": "1.1.0",
+  "description": "MトーナメントJSONのステージ表記を整理"
+}
