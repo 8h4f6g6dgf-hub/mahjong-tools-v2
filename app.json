@@ -1,8 +1,0 @@
-{
-  "name": "麻雀収支ツール",
-  "version": "2.5.5",
-  "build": "255",
-  "releaseDate": "2026-07-04",
-  "dataVersion": "1.1.0",
-  "description": "外部JSON読込失敗時も内蔵データで起動する安定化版"
-}
