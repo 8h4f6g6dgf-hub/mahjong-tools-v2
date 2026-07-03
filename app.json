@@ -1,0 +1,8 @@
+{
+  "name": "麻雀収支ツール",
+  "version": "3.0.9",
+  "build": "309",
+  "releaseDate": "2026-07-03",
+  "dataVersion": "2.5.5",
+  "description": "四麻・五等の計算停止不具合を修正"
+}
