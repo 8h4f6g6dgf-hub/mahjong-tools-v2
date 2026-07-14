@@ -1,0 +1,8 @@
+{
+  "name": "麻雀収支ツール",
+  "version": "3.1.1",
+  "build": "311",
+  "releaseDate": "2026-07-04",
+  "dataVersion": "2.5.5",
+  "description": "実戦安定版。半荘追加時の入力保持を修正"
+}
