@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.0.0</title>
+<title>麻雀収支ツール v4.0.1</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -137,7 +137,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 @media (min-width:720px){.total-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.total-card{display:block;text-align:center}.total-card .score{text-align:center}.real-sheet input{min-width:54px}.real-sheet .player-name{min-width:96px}}
 
 
-/* v4.0.0: 実戦スコア表の視認性・固定表示 */
+/* v4.0.1: 実戦スコア表の視認性・固定表示 */
 .sheet-wrap{overflow:auto;max-height:min(72vh,760px);-webkit-overflow-scrolling:touch}
 .real-sheet thead th{position:sticky;z-index:7}
 .real-sheet thead tr:first-child th{top:0}
@@ -155,7 +155,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .history-rounds{margin-top:8px;font-size:13px;line-height:1.65;white-space:pre-wrap;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
 
 
-/* v4.0.0: Excel風ウィンドウ固定とレート操作 */
+/* v4.0.1: Excel風ウィンドウ固定とレート操作 */
 .sheet-wrap{
   position:relative;
   overflow:auto;
@@ -246,7 +246,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v4.0.0: 画面スクロールにも追従する固定ヘッダー */
+/* v4.0.1: 画面スクロールにも追従する固定ヘッダー */
 .real-floating-header{
   display:none;
   position:fixed;
@@ -347,10 +347,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.0.0</span></h1>
-    <p id="appSubTitle" class="sub">v4.0.0：三麻タブを追加。3人用の実戦精算に対応。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.0.1</span></h1>
+    <p id="appSubTitle" class="sub">v4.0.1：三麻タブを追加。3人用の実戦精算に対応。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.0.0</div>
+  <div id="status" class="status">JS起動OK：v4.0.1</div>
 
 
   <div class="tabs">
@@ -461,7 +461,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.0.0',build:'400'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.0.1',build:'401'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -709,7 +709,7 @@ function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'
 function escapeJs(str){return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function setupSmoothDetails(){}
 if(document.getElementById('mtDate')){document.getElementById('mtDate').value=getTodayString()}resetMembers();renderMemberList();renderHistory();calculateOnly();setupSmoothDetails();loadAppConfig();loadMTournamentData();
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=400').catch(function(){})})}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=401').catch(function(){})})}
 
 document.addEventListener('DOMContentLoaded',function(){
   var mtDate=document.getElementById('mtDate');
@@ -827,7 +827,7 @@ function getSheetHeaderRows(mode){
   for(var p=0;p<st.players;p++)html+='<th class="floating-name" colspan="2">'+escapeHtml(names[p])+'</th>';
   html+='<th class="floating-game" rowspan="2">計</th></tr><tr>';
   for(var p=0;p<st.players;p++){
-    if(mode==='yonma')html+='<th class="floating-sub">＋</th><th class="floating-sub">−</th>';
+    if(mode==='yonma'||mode==='sanma')html+='<th class="floating-sub">＋</th><th class="floating-sub">−</th>';
     else html+='<th class="floating-sub" colspan="2">スコア</th>';
   }
   html+='</tr></thead></table>';
@@ -865,7 +865,7 @@ function bindSheetScroll(mode){
 function getRowEntryStatus(mode,r){
   var st=REAL_STATE[mode], values=[], completed=0, touched=0;
   for(var p=0;p<st.players;p++){
-    if(mode==='gotou'||mode==='sanma'){
+    if(mode==='gotou'){
       var el=document.getElementById(mode+'R'+r+'P'+p+'Plus');
       var raw=el?el.value:'';
       if(raw!==''){touched++;completed++;values.push(Number(raw));}
@@ -928,7 +928,7 @@ function renderRealSheet(mode){
   for(var p=0;p<st.players;p++){html+='<th class="player-name" colspan="2"><input id="'+mode+'Name'+p+'" value="'+escapeHtml(names[p]||'')+'" placeholder="名前" oninput="saveRealNames(\''+mode+'\');handleRealInput(\''+mode+'\');updateFloatingHeader()"></th>'}
   html+='<th class="row-sum-head" rowspan="2">計</th></tr><tr>';
   for(p=0;p<st.players;p++){
-    if(mode==='yonma')html+='<th class="pm-head">＋</th><th class="pm-head">−</th>';
+    if(mode==='yonma'||mode==='sanma')html+='<th class="pm-head">＋</th><th class="pm-head">−</th>';
     else html+='<th class="pm-head" colspan="2">スコア</th>';
   }
   html+='</tr></thead><tbody>';
@@ -941,7 +941,7 @@ function renderRealSheet(mode){
       }else if(mode==='gotou'){
         html+='<td colspan="2">'+buildGotouScoreSelect(mode,r,p)+'</td>';
       }else{
-        html+='<td colspan="2"><input id="'+mode+'R'+r+'P'+p+'Plus" inputmode="decimal" placeholder="スコア" oninput="handleRealInput(\''+mode+'\')"></td>';
+        html+='<td><input id="'+mode+'R'+r+'P'+p+'Plus" inputmode="decimal" placeholder="＋" oninput="handleRealInput(\''+mode+'\')"></td><td><input id="'+mode+'R'+r+'P'+p+'Minus" inputmode="decimal" placeholder="−" oninput="handleRealInput(\''+mode+'\')"></td>';
       }
     }
     html+='<td id="'+mode+'RowSum'+r+'" class="row-sum-cell">—</td></tr>';
