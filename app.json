@@ -1,8 +1,8 @@
 {
   "name": "麻雀収支ツール",
-  "version": "4.0.1",
-  "build": "401",
+  "version": "4.2.0",
+  "build": "420",
   "releaseDate": "2026-07-16",
   "dataVersion": "2.5.5",
-  "description": "三麻のスコア入力を＋／−の2列手入力に変更"
+  "description": "雀魂専用タブを追加し、三麻手入力とJSON読込を分離"
 }

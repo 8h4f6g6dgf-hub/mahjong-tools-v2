@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.0.1</title>
+<title>麻雀収支ツール v4.2.0</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -137,7 +137,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 @media (min-width:720px){.total-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.total-card{display:block;text-align:center}.total-card .score{text-align:center}.real-sheet input{min-width:54px}.real-sheet .player-name{min-width:96px}}
 
 
-/* v4.0.1: 実戦スコア表の視認性・固定表示 */
+/* v4.2.0: 実戦スコア表の視認性・固定表示 */
 .sheet-wrap{overflow:auto;max-height:min(72vh,760px);-webkit-overflow-scrolling:touch}
 .real-sheet thead th{position:sticky;z-index:7}
 .real-sheet thead tr:first-child th{top:0}
@@ -155,7 +155,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .history-rounds{margin-top:8px;font-size:13px;line-height:1.65;white-space:pre-wrap;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
 
 
-/* v4.0.1: Excel風ウィンドウ固定とレート操作 */
+/* v4.2.0: Excel風ウィンドウ固定とレート操作 */
 .sheet-wrap{
   position:relative;
   overflow:auto;
@@ -246,7 +246,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v4.0.1: 画面スクロールにも追従する固定ヘッダー */
+/* v4.2.0: 画面スクロールにも追従する固定ヘッダー */
 .real-floating-header{
   display:none;
   position:fixed;
@@ -342,15 +342,79 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
   .real-sheet .row-sum-head,.real-sheet .row-sum-cell{min-width:46px;width:46px;font-size:12px}
 }
 
+
+/* v4.2.0 雀魂JSON読込 */
+.json-import-card{
+  border:1px solid #c4b5fd;
+  background:linear-gradient(180deg,#faf5ff,#f8fafc);
+}
+.json-import-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:end;
+  margin-top:12px;
+}
+.json-file-label{
+  display:block;
+  padding:12px;
+  border:1px dashed #8b5cf6;
+  border-radius:12px;
+  background:#fff;
+}
+.json-file-label input[type="file"]{
+  width:100%;
+  margin-top:7px;
+}
+.json-import-status{
+  margin-top:10px;
+  min-height:20px;
+  padding:10px 12px;
+  border-radius:10px;
+  font-size:13px;
+  line-height:1.5;
+  background:#eef2ff;
+  color:#3730a3;
+}
+.json-import-status.error{
+  background:#fff1f2;
+  color:#be123c;
+  border:1px solid #fda4af;
+}
+.json-import-status.success{
+  background:#ecfdf5;
+  color:#166534;
+  border:1px solid #86efac;
+}
+.json-format-note{
+  font-size:12px;
+  color:#64748b;
+  line-height:1.55;
+  margin-top:10px;
+}
+@media(max-width:600px){
+  .json-import-grid{grid-template-columns:1fr}
+  .json-import-grid button{width:100%}
+}
+
+
+/* v4.2.0 雀魂専用タブ */
+.majsoul-table-wrap{overflow:auto;border:1px solid #dbe3ef;border-radius:14px}
+.majsoul-table{width:100%;min-width:560px;border-collapse:collapse;table-layout:fixed}
+.majsoul-table th,.majsoul-table td{padding:10px 8px;text-align:center;border-bottom:1px solid #e2e8f0}
+.majsoul-table thead th{position:sticky;top:0;z-index:2;background:#eef6ff;color:#183b63}
+.majsoul-table tbody tr:nth-child(even){background:#f8fafc}
+.majsoul-table .round-col{position:sticky;left:0;z-index:1;background:inherit;font-weight:900}
+.majsoul-meta{margin-top:10px;font-size:12px;line-height:1.6;color:#64748b}
 </style>
 </head>
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.0.1</span></h1>
-    <p id="appSubTitle" class="sub">v4.0.1：三麻タブを追加。3人用の実戦精算に対応。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.2.0</span></h1>
+    <p id="appSubTitle" class="sub">v4.2.0：雀魂専用タブを追加し、三麻の手入力とJSON読込を分離しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.0.1</div>
+  <div id="status" class="status">JS起動OK：v4.2.0</div>
 
 
   <div class="tabs">
@@ -358,6 +422,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
     <button class="tab-btn" id="tabBtn-yonma" type="button" onclick="switchAppTab('yonma')">四麻</button>
     <button class="tab-btn" id="tabBtn-gotou" type="button" onclick="switchAppTab('gotou')">五等</button>
     <button class="tab-btn" id="tabBtn-sanma" type="button" onclick="switchAppTab('sanma')">三麻</button>
+    <button class="tab-btn" id="tabBtn-majsoul" type="button" onclick="switchAppTab('majsoul')">雀魂</button>
   </div>
   <div id="tab-mt" class="tab-panel active">
   <section class="card"><details open><summary>貼り付け入力</summary><div class="small">前回までの結果を貼り付けると、自動計算欄の「既存合計」に反映される。</div><textarea id="freeInput" placeholder="たい：510 -6230&#10;まさ：+5510 -340&#10;ゆひ：+20550 6100&#10;くり：-26570 470"></textarea><div class="buttons"><button class="secondary" type="button" onclick="applyFreeInputToBase()">既存合計に反映</button><button class="secondary" type="button" onclick="clearFreeInput()">貼付欄クリア</button></div></details></section>
@@ -455,13 +520,56 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
     <section class="card"><details open><summary>三麻 履歴</summary><div id="sanmaHistory"></div></details></section>
   </div>
 
+
+  <div id="tab-majsoul" class="tab-panel">
+    <section class="card json-import-card">
+      <h2>雀魂連携（β）</h2>
+      <p class="sub">解析済みの三麻JSONを読み込み、結果・半荘別スコア・チップを確認します。</p>
+      <div class="json-import-grid">
+        <label class="json-file-label">
+          <strong>JSONファイル</strong>
+          <input id="sanmaJsonFile" type="file" accept=".json,application/json" onchange="onSanmaJsonFileSelected()">
+        </label>
+        <button class="primary" type="button" onclick="readSanmaJsonFile()">JSONを読み込む</button>
+      </div>
+      <div id="sanmaJsonStatus" class="json-import-status">JSONファイルを選択してください。</div>
+      <div class="json-format-note">今後、雀魂共有URLの解析機能もこのタブへ追加します。</div>
+    </section>
+
+    <section id="majsoulResultCard" class="card" style="display:none">
+      <div class="history-head">
+        <h2 style="margin:0">読み込み結果</h2>
+        <div id="majsoulDateBadge" class="history-badge"></div>
+      </div>
+      <div id="majsoulResultCards" class="total-grid"></div>
+      <div id="majsoulRank" class="rank-box"></div>
+      <div class="chart-card"><canvas id="majsoulChart" width="680" height="220"></canvas></div>
+    </section>
+
+    <section id="majsoulHandsCard" class="card" style="display:none">
+      <h2>半荘別明細</h2>
+      <div id="majsoulHands"></div>
+    </section>
+
+    <section id="majsoulActionsCard" class="card" style="display:none">
+      <div class="buttons" style="margin-top:0">
+        <button class="primary" type="button" onclick="saveMajsoulHistory()">雀魂履歴を保存</button>
+      </div>
+      <div class="buttons clear-buttons">
+        <button class="danger" type="button" onclick="clearMajsoulResult()">読み込み結果をクリア</button>
+      </div>
+    </section>
+
+    <section class="card"><details open><summary>雀魂 履歴</summary><div id="majsoulHistory"></div></details></section>
+  </div>
+
   <section class="card"><details><summary>メンバー設定</summary><div class="small">コピー表示順</div><select id="sortMode" onchange="calculateOnly()"><option value="score">プラス順</option><option value="member">名前順</option></select><div class="small">選んだ順番でコピー時の並びが変わる。</div><div class="small" style="margin-top:14px;">追加・削除は画面上に反映される。</div><div id="memberList"></div><div style="margin-top:12px;"><input id="newMemberName" placeholder="追加する名前 例：たろう"><div class="buttons"><button class="primary" type="button" onclick="addMember()">追加</button><button class="danger" type="button" onclick="resetMembers()">初期メンバーに戻す</button></div></div></details></section>
 </div>
 <div id="toast" class="toast">コピーしたよ</div>
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.0.1',build:'401'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.2.0',build:'420'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -709,7 +817,7 @@ function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'
 function escapeJs(str){return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function setupSmoothDetails(){}
 if(document.getElementById('mtDate')){document.getElementById('mtDate').value=getTodayString()}resetMembers();renderMemberList();renderHistory();calculateOnly();setupSmoothDetails();loadAppConfig();loadMTournamentData();
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=401').catch(function(){})})}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=420').catch(function(){})})}
 
 document.addEventListener('DOMContentLoaded',function(){
   var mtDate=document.getElementById('mtDate');
@@ -740,6 +848,231 @@ function switchAppTab(tab){
   setTimeout(updateFloatingHeader,0);
 }
 function todayISO(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+day}
+
+var SANMA_JSON_PENDING_FILE=null;
+var MAJSOUL_IMPORTED_DATA=null;
+
+function setSanmaJsonStatus(message,type){
+  var el=document.getElementById('sanmaJsonStatus');
+  if(!el)return;
+  el.textContent=message;
+  el.classList.remove('error','success');
+  if(type)el.classList.add(type);
+}
+function onSanmaJsonFileSelected(){
+  var input=document.getElementById('sanmaJsonFile');
+  SANMA_JSON_PENDING_FILE=input&&input.files&&input.files[0]?input.files[0]:null;
+  if(SANMA_JSON_PENDING_FILE){
+    setSanmaJsonStatus('選択中：'+SANMA_JSON_PENDING_FILE.name,'');
+  }else{
+    setSanmaJsonStatus('JSONファイルを選択してください。','');
+  }
+}
+function readSanmaJsonFile(){
+  var input=document.getElementById('sanmaJsonFile');
+  var file=(input&&input.files&&input.files[0])||SANMA_JSON_PENDING_FILE;
+  if(!file){
+    setSanmaJsonStatus('JSONファイルが選択されていません。','error');
+    showToast('JSONファイルを選んでね');
+    return;
+  }
+  var reader=new FileReader();
+  setSanmaJsonStatus('JSONを読み込み中…','');
+  reader.onload=function(event){
+    try{
+      var data=JSON.parse(String(event.target.result||''));
+      loadSanmaJson(data);
+    }catch(e){
+      setSanmaJsonStatus('JSONの読み込みに失敗しました：'+(e&&e.message?e.message:'形式エラー'),'error');
+      showToast('JSON形式を確認してね');
+    }
+  };
+  reader.onerror=function(){
+    setSanmaJsonStatus('ファイルを読み込めませんでした。','error');
+  };
+  reader.readAsText(file,'utf-8');
+}
+function normalizeSanmaJson(raw){
+  var data=raw&&raw.data&&typeof raw.data==='object'?raw.data:raw;
+  if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('JSONのルートはオブジェクトにしてください');
+  var version=Number(data.version||1);
+  var mode=String(data.mode||'').toLowerCase();
+  if(version!==1)throw new Error('未対応のversionです（対応：1）');
+  if(mode!=='sanma')throw new Error('modeは「sanma」にしてください');
+  if(!Array.isArray(data.players)||data.players.length!==3)throw new Error('playersは3人分必要です');
+  var players=data.players.map(function(name,i){
+    var v=String(name==null?'':name).trim();
+    if(!v)throw new Error((i+1)+'人目の名前が空です');
+    return v;
+  });
+  var chipValue=Number(data.chipValue==null?100:data.chipValue);
+  if([100,300,500].indexOf(chipValue)<0)throw new Error('chipValueは100／300／500のいずれかにしてください');
+  if(!Array.isArray(data.hands)||data.hands.length===0)throw new Error('handsがありません');
+  var hands=data.hands.map(function(hand,index){
+    if(!hand||typeof hand!=='object')throw new Error((index+1)+'半荘目のデータ形式が不正です');
+    var scores=Array.isArray(hand.scores)?hand.scores:(Array.isArray(hand.score)?hand.score:null);
+    if(!scores||scores.length!==3)throw new Error((index+1)+'半荘目のscoresは3人分必要です');
+    scores=scores.map(function(v){
+      var n=Number(v);
+      if(!Number.isFinite(n))throw new Error((index+1)+'半荘目に数値でないスコアがあります');
+      return n;
+    });
+    var sum=scores.reduce(function(a,b){return a+b},0);
+    if(Math.abs(sum)>0.000001)throw new Error((index+1)+'半荘目の横合計が0ではありません（'+formatSigned(sum)+'）');
+    var chips=null;
+    if(hand.chips!=null){
+      if(!Array.isArray(hand.chips)||hand.chips.length!==3)throw new Error((index+1)+'半荘目のchipsは3人分必要です');
+      chips=hand.chips.map(function(v){
+        var n=Number(v);
+        if(!Number.isFinite(n))throw new Error((index+1)+'半荘目に数値でないチップがあります');
+        return n;
+      });
+    }
+    return {scores:scores,chips:chips};
+  });
+  var finalChips=[0,0,0];
+  if(Array.isArray(data.chips)){
+    if(data.chips.length!==3)throw new Error('chipsは3人分必要です');
+    finalChips=data.chips.map(function(v){
+      var n=Number(v);
+      if(!Number.isFinite(n))throw new Error('chipsに数値でない値があります');
+      return n;
+    });
+  }else{
+    hands.forEach(function(hand){
+      if(hand.chips)for(var i=0;i<3;i++)finalChips[i]+=hand.chips[i];
+    });
+  }
+  var date=data.date?String(data.date):'';
+  return {version:1,mode:'sanma',players:players,chipValue:chipValue,hands:hands,chips:finalChips,date:date};
+}
+function ensureSanmaRows(requiredRows){
+  var blocks=Math.max(1,Math.ceil(requiredRows/10));
+  REAL_STATE.sanma.rows=blocks*10;
+}
+function setSignedScoreToSanmaRow(rowIndex,playerIndex,value){
+  var plus=document.getElementById('sanmaR'+rowIndex+'P'+playerIndex+'Plus');
+  var minus=document.getElementById('sanmaR'+rowIndex+'P'+playerIndex+'Minus');
+  if(!plus||!minus)return;
+  if(value>0){
+    plus.value=String(value);
+    minus.value='';
+  }else if(value<0){
+    plus.value='';
+    minus.value=String(Math.abs(value));
+  }else{
+    plus.value='0';
+    minus.value='';
+  }
+}
+function applySanmaData(data){
+  MAJSOUL_IMPORTED_DATA=data;
+  ['majsoulResultCard','majsoulHandsCard','majsoulActionsCard'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.style.display='block';
+  });
+  var dateBadge=document.getElementById('majsoulDateBadge');
+  if(dateBadge)dateBadge.textContent=data.date||'日付未設定';
+
+  var totals=[0,0,0],cumulative=[0,0,0],series=[];
+  data.hands.forEach(function(hand){
+    for(var i=0;i<3;i++){totals[i]+=hand.scores[i];cumulative[i]+=hand.scores[i];}
+    series.push(cumulative.slice());
+  });
+  var scoreAmounts=totals.map(function(v){return Math.round(v*1000);});
+  var chipAmounts=data.chips.map(function(v){return Math.round(v*data.chipValue);});
+  var finalAmounts=scoreAmounts.map(function(v,i){return v+chipAmounts[i];});
+
+  var cards='';
+  data.players.forEach(function(name,i){
+    var cls=finalAmounts[i]>0?'plus':(finalAmounts[i]<0?'minus':'');
+    cards+='<div class="total-card"><div class="name">'+escapeHtml(name)+'</div><div class="score '+cls+'">'+formatSigned(finalAmounts[i])+'</div><div class="subline">スコア '+formatSigned(scoreAmounts[i])+'</div><div class="subline">チップ '+formatSigned(chipAmounts[i])+'（'+formatSigned(data.chips[i])+'枚）</div><div class="subline">入力合計 '+formatSigned(totals[i])+'</div></div>';
+  });
+  var resultBox=document.getElementById('majsoulResultCards');if(resultBox)resultBox.innerHTML=cards;
+
+  var ranked=finalAmounts.map(function(v,i){return {i:i,v:v};}).sort(function(a,b){return b.v-a.v});
+  var rankBox=document.getElementById('majsoulRank');
+  if(rankBox)rankBox.textContent=ranked.map(function(x,idx){return (idx+1)+'位 '+data.players[x.i]+' '+formatSigned(x.v);}).join(' / ');
+
+  var table='<div class="majsoul-table-wrap"><table class="majsoul-table"><thead><tr><th class="round-col">半荘</th>';
+  data.players.forEach(function(name){table+='<th>'+escapeHtml(name)+'</th>';});
+  table+='<th>計</th></tr></thead><tbody>';
+  data.hands.forEach(function(hand,index){
+    var sum=hand.scores.reduce(function(a,b){return a+b},0);
+    table+='<tr><td class="round-col">'+(index+1)+'</td>';
+    hand.scores.forEach(function(v){table+='<td>'+formatSigned(v)+'</td>';});
+    table+='<td>'+(Math.abs(sum)<0.000001?'✓ 0':formatSigned(sum))+'</td></tr>';
+  });
+  table+='</tbody></table></div><div class="majsoul-meta">チップ単価：'+data.chipValue+'円<br>'+data.players.map(function(n,i){return escapeHtml(n)+'：'+formatSigned(data.chips[i])+'枚';}).join(' / ')+'</div>';
+  var handsBox=document.getElementById('majsoulHands');if(handsBox)handsBox.innerHTML=table;
+  drawMajsoulChart(data.players,series);
+}
+function drawMajsoulChart(names,series){
+  var canvas=document.getElementById('majsoulChart');if(!canvas)return;
+  var ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1,w=Math.max(320,canvas.clientWidth||680),h=220;
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+'px';ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  var pad={l:42,r:16,t:28,b:30},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,vals=[0];
+  series.forEach(function(row){row.forEach(function(v){vals.push(v);});});
+  var min=Math.min.apply(null,vals),max=Math.max.apply(null,vals);if(min===max){min-=10;max+=10}var range=max-min;
+  ctx.strokeStyle='#dbe3ef';ctx.lineWidth=1;
+  for(var g=0;g<=4;g++){var y=pad.t+ph*g/4;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();}
+  var colors=['#2563eb','#dc2626','#16a34a'];
+  names.forEach(function(name,p){
+    var pts=[[0,0]].concat(series.map(function(row,i){return [i+1,row[p]];}));
+    ctx.strokeStyle=colors[p];ctx.lineWidth=3;ctx.beginPath();
+    pts.forEach(function(pt,idx){
+      var x=pad.l+pw*pt[0]/Math.max(1,pts.length-1),y=pad.t+ph-(pt[1]-min)/range*ph;
+      if(idx===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    });
+    ctx.stroke();ctx.fillStyle=colors[p];ctx.font='12px sans-serif';ctx.fillText(name,pad.l+p*105,16);
+  });
+}
+function saveMajsoulHistory(){
+  if(!MAJSOUL_IMPORTED_DATA){showToast('先にJSONを読み込んでね');return;}
+  var list=loadJson('majsoul_history',[]);
+  list.unshift({data:MAJSOUL_IMPORTED_DATA,savedAt:new Date().toISOString()});
+  saveJson('majsoul_history',list);renderMajsoulHistory();showToast('雀魂履歴を保存したよ');
+}
+function renderMajsoulHistory(){
+  var box=document.getElementById('majsoulHistory');if(!box)return;
+  var list=loadJson('majsoul_history',[]);
+  if(!list.length){box.innerHTML='<div class="empty">履歴はまだありません。</div>';return;}
+  box.innerHTML=list.map(function(item){
+    var d=item.data||{},totals=[0,0,0];
+    (d.hands||[]).forEach(function(h){(h.scores||[]).forEach(function(v,i){totals[i]+=Number(v)||0;});});
+    var body=(d.players||[]).map(function(n,i){return escapeHtml(n)+'：'+formatSigned(totals[i]||0);}).join('\n');
+    var detail=(d.hands||[]).map(function(h,ri){return (ri+1)+'：'+(h.scores||[]).map(formatSigned).join(' / ');}).join('\n');
+    return '<div class="history-item"><div class="history-head"><div class="history-date">'+escapeHtml(d.date||'日付未設定')+'</div><div class="history-badge">雀魂</div></div><div class="history-body">'+body+'<details><summary>半荘別スコア</summary>'+detail+'</details></div></div>';
+  }).join('');
+}
+function clearMajsoulResult(){
+  if(!confirm('読み込み結果をクリアします。よろしいですか？'))return;
+  MAJSOUL_IMPORTED_DATA=null;
+  ['majsoulResultCard','majsoulHandsCard','majsoulActionsCard'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.style.display='none';
+  });
+  var input=document.getElementById('sanmaJsonFile');if(input)input.value='';
+  SANMA_JSON_PENDING_FILE=null;
+  setSanmaJsonStatus('JSONファイルを選択してください。','');
+  showToast('読み込み結果をクリアしたよ');
+}
+function validateSanmaJson(raw){
+  return normalizeSanmaJson(raw);
+}
+function loadSanmaJson(raw){
+  try{
+    var data=validateSanmaJson(raw);
+    applySanmaData(data);
+    setSanmaJsonStatus(
+      '読込完了：'+data.players.join(' / ')+'、'+data.hands.length+'半荘、チップ単価'+data.chipValue+'円',
+      'success'
+    );
+    showToast('雀魂JSONを読み込んだよ');
+  }catch(e){
+    setSanmaJsonStatus('読み込みできません：'+(e&&e.message?e.message:'形式エラー'),'error');
+    showToast('JSON内容を確認してね');
+  }
+}
+
 function initRealModes(){
   try{
     var savedRate=localStorage.getItem('real_yonma_rate_mode');
