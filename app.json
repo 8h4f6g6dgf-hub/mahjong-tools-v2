@@ -1,8 +1,8 @@
 {
   "name": "麻雀収支ツール",
-  "version": "3.1.2",
-  "build": "312",
-  "releaseDate": "2026-07-15",
+  "version": "3.1.3",
+  "build": "313",
+  "releaseDate": "2026-07-16",
   "dataVersion": "2.5.5",
-  "description": "10行単位の背景色、名前ヘッダー固定、半荘別履歴保存、なりきり履歴改行を修正"
+  "description": "Excel風固定表示、四麻7236/9348・ハーフ、五等スコア1.5倍に対応"
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mahjong-tools-v3.1.2';
+const CACHE_NAME = 'mahjong-tools-v3.1.3';
 
 const ASSETS_TO_CACHE = [
   './',

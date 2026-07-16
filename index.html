@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v3.0.7</title>
+<title>麻雀収支ツール v3.1.3</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -137,7 +137,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 @media (min-width:720px){.total-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.total-card{display:block;text-align:center}.total-card .score{text-align:center}.real-sheet input{min-width:54px}.real-sheet .player-name{min-width:96px}}
 
 
-/* v3.1.2: 実戦スコア表の視認性・固定表示 */
+/* v3.1.3: 実戦スコア表の視認性・固定表示 */
 .sheet-wrap{overflow:auto;max-height:min(72vh,760px);-webkit-overflow-scrolling:touch}
 .real-sheet thead th{position:sticky;z-index:7}
 .real-sheet thead tr:first-child th{top:0}
@@ -154,15 +154,106 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .history-detail summary{font-size:13px;font-weight:900;color:#334155;cursor:pointer}
 .history-rounds{margin-top:8px;font-size:13px;line-height:1.65;white-space:pre-wrap;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
 
+
+/* v3.1.3: Excel風ウィンドウ固定とレート操作 */
+.sheet-wrap{
+  position:relative;
+  overflow:auto;
+  max-height:min(72vh,760px);
+  -webkit-overflow-scrolling:touch;
+  isolation:isolate;
+}
+.real-sheet thead{
+  position:sticky;
+  top:0;
+  z-index:20;
+}
+.real-sheet thead tr:first-child th{
+  position:sticky;
+  top:0;
+  z-index:22;
+  height:58px;
+}
+.real-sheet thead tr:nth-child(2) th{
+  position:sticky;
+  top:58px;
+  z-index:21;
+  height:42px;
+}
+.real-sheet thead .game-no{
+  position:sticky!important;
+  top:0!important;
+  left:0!important;
+  z-index:30!important;
+  background:#e8f1ff!important;
+  box-shadow:2px 2px 5px rgba(15,23,42,.12);
+}
+.real-sheet thead .player-name{
+  position:sticky;
+  top:0;
+  z-index:23!important;
+  background:#eef6ff!important;
+  box-shadow:0 2px 4px rgba(15,23,42,.08);
+}
+.real-sheet tbody .game-no,
+.real-sheet tfoot .game-no{
+  position:sticky!important;
+  left:0!important;
+  z-index:12!important;
+}
+.real-sheet .subtotal-row .game-no{
+  z-index:14!important;
+}
+.rate-mode-box{min-width:0}
+.rate-help{font-size:12px;color:#64748b;margin-top:5px;line-height:1.45}
+.gotou-boost-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:12px;
+  padding:12px;
+  border:1px solid #dbe3ef;
+  border-radius:14px;
+  background:#f8fafc;
+}
+.boost-toggle{
+  min-height:42px;
+  padding:9px 14px;
+  border-radius:999px;
+  background:#e2e8f0;
+  color:#334155;
+  white-space:nowrap;
+}
+.boost-toggle.active{
+  background:linear-gradient(180deg,#7c3aed,#5b21b6);
+  color:#fff;
+}
+.real-sheet select.score-choice{
+  min-height:38px;
+  padding:6px 4px;
+  border-radius:9px;
+  text-align:center;
+  font-size:15px;
+  font-weight:850;
+  width:100%;
+  min-width:0;
+  background:#fff;
+}
+@media(max-width:560px){
+  .gotou-boost-row{align-items:flex-start;flex-direction:column}
+  .boost-toggle{width:100%}
+}
+
 </style>
 </head>
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v3.1.2</span></h1>
-    <p id="appSubTitle" class="sub">v3.1.2：実戦入力・履歴表示の抜けを修正。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v3.1.3</span></h1>
+    <p id="appSubTitle" class="sub">v3.1.3：固定ヘッダー・四麻レート選択・五等1.5倍に対応。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v3.1.2</div>
+  <div id="status" class="status">JS起動OK：v3.1.3</div>
 
 
   <div class="tabs">
@@ -223,6 +314,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
       <p class="sub">リアル麻雀用。スコアは入力値×1000、チップは300円/500円。</p>
       <div class="real-settings">
         <div><div class="small">日付</div><input id="yonmaDate" type="date"></div>
+        <div class="rate-mode-box"><div class="small">四麻モード</div><select id="yonmaRateMode" onchange="changeYonmaRateMode()"><option value="7236">7236</option><option value="9348">9348</option><option value="7236-half">7236ハーフ</option><option value="9348-half">9348ハーフ</option></select><div class="rate-help">ハーフでも入力値は通常表示。最終精算時のみスコア分を半額にします。</div></div>
         <div><div class="small">チップ単価</div><select id="yonmaChipValue" onchange="markRealDirty('yonma')"><option value="300">300円</option><option value="500">500円</option></select></div>
       </div>
       <div id="yonmaSheet"></div>
@@ -241,6 +333,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
         <div><div class="small">チップ単価</div><select id="gotouChipValue" onchange="markRealDirty('gotou')"><option value="100">100円</option><option value="150">150円</option></select></div>
       </div>
       <div class="buttons" style="margin-top:0"><button class="secondary" id="gotouAddPlayerBtn" type="button" onclick="addGotouFourthPlayer()">4人目を追加</button></div>
+      <div class="gotou-boost-row"><div><strong>スコア合計1.5倍</strong><div class="rate-help">ONにすると、最終精算時のスコア分だけを1.5倍します。チップ分はそのままです。</div></div><button id="gotouBoostBtn" class="boost-toggle" type="button" aria-pressed="false" onclick="toggleGotouBoost()">OFF</button></div>
       <div id="gotouSheet"></div>
       <div class="buttons"><button class="secondary" type="button" onclick="addRealRows('gotou',10)">半荘を10行追加</button></div>
       <div id="gotouTotals"></div><div id="gotouRanks" class="rank-box">スコアを入力すると着順を抽出する。</div><div class="chart-card"><canvas id="gotouChart" width="680" height="220"></canvas></div>
@@ -254,7 +347,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'3.1.0',build:'310'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'3.1.3',build:'313'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -280,8 +373,8 @@ async function loadAppConfig(){
   }
 }
 function applyAppConfig(){
-  var version=APP_CONFIG.version||'3.1.2';
-  var build=APP_CONFIG.build||'255';
+  var version=APP_CONFIG.version||'3.1.3';
+  var build=APP_CONFIG.build||'313';
   var badge=document.getElementById('appVersionBadge');
   var sub=document.getElementById('appSubTitle');
   var status=document.getElementById('status');
@@ -502,7 +595,7 @@ function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'
 function escapeJs(str){return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function setupSmoothDetails(){}
 if(document.getElementById('mtDate')){document.getElementById('mtDate').value=getTodayString()}resetMembers();renderMemberList();renderHistory();calculateOnly();setupSmoothDetails();loadAppConfig();loadMTournamentData();
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=252').catch(function(){})})}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=313').catch(function(){})})}
 
 document.addEventListener('DOMContentLoaded',function(){
   var mtDate=document.getElementById('mtDate');
@@ -518,8 +611,8 @@ document.addEventListener('DOMContentLoaded',function(){
 /* ===== v3 real mahjong settlement modes ===== */
 var REAL_MODE_KEY='mahjong_tool_real_history_v300';
 var REAL_STATE={
-  yonma:{players:4, rows:10, multiplier:1000, chipValues:[300,500], defaultNames:['たい','まさ','ゆうひ','くり']},
-  gotou:{players:3, rows:10, multiplier:10, chipValues:[100,150], defaultNames:['たい','まさ','ゆうひ','']}
+  yonma:{players:4, rows:10, multiplier:1000, chipValues:[300,500], defaultNames:['たい','まさ','ゆうひ','くり'], rateMode:'7236'},
+  gotou:{players:3, rows:10, multiplier:10, chipValues:[100,150], defaultNames:['たい','まさ','ゆうひ',''], boost15:false}
 };
 function switchAppTab(tab){
   ['mt','yonma','gotou'].forEach(function(t){
@@ -531,8 +624,76 @@ function switchAppTab(tab){
 }
 function todayISO(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+day}
 function initRealModes(){
+  try{
+    var savedRate=localStorage.getItem('real_yonma_rate_mode');
+    if(savedRate)REAL_STATE.yonma.rateMode=savedRate;
+    var savedBoost=localStorage.getItem('real_gotou_boost15');
+    REAL_STATE.gotou.boost15=savedBoost==='1';
+  }catch(e){}
+  var rateSelect=document.getElementById('yonmaRateMode');
+  if(rateSelect)rateSelect.value=REAL_STATE.yonma.rateMode;
+  updateGotouBoostButton();
   ['yonma','gotou'].forEach(function(mode){var d=document.getElementById(mode+'Date'); if(d&&!d.value)d.value=todayISO(); renderRealSheet(mode); renderRealHistory(mode);});
 }
+
+function getYonmaRateDefinition(){
+  var mode=REAL_STATE.yonma.rateMode||'7236';
+  if(mode.indexOf('9348')===0)return {plus:[9,3],minus:[4,8],half:mode.indexOf('-half')>0};
+  return {plus:[7,2],minus:[3,6],half:mode.indexOf('-half')>0};
+}
+function buildYonmaScoreSelect(mode,r,p,kind){
+  var def=getYonmaRateDefinition(), values=kind==='Plus'?def.plus:def.minus;
+  var id=mode+'R'+r+'P'+p+kind;
+  var label=kind==='Plus'?'+':'−';
+  var out='<select class="score-choice" id="'+id+'" data-mode="'+mode+'" onchange="handleRealInput(this.dataset.mode)"><option value="">'+label+'</option>';
+  values.forEach(function(v){out+='<option value="'+v+'">'+v+'</option>';});
+  out+='</select>';
+  return out;
+}
+function changeYonmaRateMode(){
+  var select=document.getElementById('yonmaRateMode');
+  var newMode=select?select.value:'7236';
+  var before=captureRealState('yonma');
+  before.rateMode=newMode;
+  REAL_STATE.yonma.rateMode=newMode;
+  try{localStorage.setItem('real_yonma_rate_mode',newMode)}catch(e){}
+  renderRealSheet('yonma');
+  restoreRealState('yonma',before);
+  sanitizeYonmaSelections();
+  markRealDirty('yonma');
+  showToast(newMode.replace('-half','ハーフ')+'モードに変更したよ');
+}
+function sanitizeYonmaSelections(){
+  var st=REAL_STATE.yonma, def=getYonmaRateDefinition();
+  for(var r=1;r<=st.rows;r++){
+    for(var p=0;p<st.players;p++){
+      var plus=document.getElementById('yonmaR'+r+'P'+p+'Plus');
+      var minus=document.getElementById('yonmaR'+r+'P'+p+'Minus');
+      if(plus&&plus.value!==''&&def.plus.indexOf(Number(plus.value))<0)plus.value='';
+      if(minus&&minus.value!==''&&def.minus.indexOf(Number(minus.value))<0)minus.value='';
+    }
+  }
+  handleRealInput('yonma');
+}
+function toggleGotouBoost(){
+  REAL_STATE.gotou.boost15=!REAL_STATE.gotou.boost15;
+  try{localStorage.setItem('real_gotou_boost15',REAL_STATE.gotou.boost15?'1':'0')}catch(e){}
+  updateGotouBoostButton();
+  markRealDirty('gotou');
+}
+function updateGotouBoostButton(){
+  var btn=document.getElementById('gotouBoostBtn');
+  if(!btn)return;
+  btn.classList.toggle('active',!!REAL_STATE.gotou.boost15);
+  btn.textContent=REAL_STATE.gotou.boost15?'ON（×1.5）':'OFF';
+  btn.setAttribute('aria-pressed',REAL_STATE.gotou.boost15?'true':'false');
+}
+function getRealScoreFactor(mode){
+  if(mode==='yonma')return getYonmaRateDefinition().half?0.5:1;
+  if(mode==='gotou')return REAL_STATE.gotou.boost15?1.5:1;
+  return 1;
+}
+
 function renderRealSheet(mode){
   var st=REAL_STATE[mode], box=document.getElementById(mode+'Sheet'); if(!box)return;
   var names=loadRealNames(mode), html='<div class="sheet-wrap"><table class="real-sheet"><colgroup><col style="width:44px">'; for(var cp=0;cp<st.players;cp++){html+='<col><col>'} html+='</colgroup><thead><tr><th class="game-no" rowspan="2">半荘</th>';
@@ -540,7 +701,15 @@ function renderRealSheet(mode){
   html+='</tr><tr>'; for(p=0;p<st.players;p++){html+='<th class="pm-head">＋</th><th class="pm-head">−</th>'} html+='</tr></thead><tbody>';
   for(var r=1;r<=st.rows;r++){
     var blockClass=(Math.floor((r-1)/10)%2===0?'score-block-a':'score-block-b')+(r>1&&(r-1)%10===0?' block-start':'');
-    html+='<tr class="'+blockClass+'"><td class="game-no">'+r+'</td>'; for(p=0;p<st.players;p++){html+='<td><input id="'+mode+'R'+r+'P'+p+'Plus" inputmode="decimal" placeholder="+" oninput="handleRealInput(\''+mode+'\')"></td><td><input id="'+mode+'R'+r+'P'+p+'Minus" inputmode="decimal" placeholder="−" oninput="handleRealInput(\''+mode+'\')"></td>'} html+='</tr>';
+    html+='<tr class="'+blockClass+'"><td class="game-no">'+r+'</td>';
+    for(p=0;p<st.players;p++){
+      if(mode==='yonma'){
+        html+='<td>'+buildYonmaScoreSelect(mode,r,p,'Plus')+'</td><td>'+buildYonmaScoreSelect(mode,r,p,'Minus')+'</td>';
+      }else{
+        html+='<td><input id="'+mode+'R'+r+'P'+p+'Plus" inputmode="decimal" placeholder="+" oninput="handleRealInput(\''+mode+'\')"></td><td><input id="'+mode+'R'+r+'P'+p+'Minus" inputmode="decimal" placeholder="−" oninput="handleRealInput(\''+mode+'\')"></td>';
+      }
+    }
+    html+='</tr>';
   }
   html+='<tr class="subtotal-row final-subtotal-row"><td class="subtotal-label game-no">合計</td>'; for(p=0;p<st.players;p++){html+='<td colspan="2"><div id="'+mode+'FinalSubtotalP'+p+'" class="subtotal-score">0</div></td>'} html+='</tr>';
   html+='</tbody></table></div>'; box.innerHTML=html; renderChipInputs(mode); handleRealInput(mode);
@@ -548,9 +717,11 @@ function renderRealSheet(mode){
 function loadRealNames(mode){try{var v=JSON.parse(localStorage.getItem('real_names_'+mode)||'null');if(Array.isArray(v))return v}catch(e){} return REAL_STATE[mode].defaultNames.slice();}
 function saveRealNames(mode){var st=REAL_STATE[mode], arr=[]; for(var p=0;p<st.players;p++){var el=document.getElementById(mode+'Name'+p); arr.push((el&&el.value.trim())||REAL_STATE[mode].defaultNames[p]||('P'+(p+1)))} try{localStorage.setItem('real_names_'+mode,JSON.stringify(arr))}catch(e){} }
 function captureRealState(mode){
-  var st=REAL_STATE[mode], data={names:[], scores:{}, chips:[], chipValue:null, date:null};
+  var st=REAL_STATE[mode], data={names:[], scores:{}, chips:[], chipValue:null, date:null, rateMode:null, boost15:null};
   var dateEl=document.getElementById(mode+'Date'); if(dateEl)data.date=dateEl.value;
   var chipValueEl=document.getElementById(mode+'ChipValue'); if(chipValueEl)data.chipValue=chipValueEl.value;
+  if(mode==='yonma')data.rateMode=REAL_STATE.yonma.rateMode;
+  if(mode==='gotou')data.boost15=REAL_STATE.gotou.boost15;
   for(var p=0;p<st.players;p++){
     var nameEl=document.getElementById(mode+'Name'+p); data.names[p]=nameEl?nameEl.value:'';
     var chipEl=document.getElementById(mode+'Chip'+p); data.chips[p]=chipEl?chipEl.value:'';
@@ -570,6 +741,8 @@ function restoreRealState(mode,data){
   var st=REAL_STATE[mode], el;
   if(data.date&&(el=document.getElementById(mode+'Date')))el.value=data.date;
   if(data.chipValue&&(el=document.getElementById(mode+'ChipValue')))el.value=data.chipValue;
+  if(mode==='yonma'&&data.rateMode){REAL_STATE.yonma.rateMode=data.rateMode; if((el=document.getElementById('yonmaRateMode')))el.value=data.rateMode;}
+  if(mode==='gotou'&&data.boost15!=null){REAL_STATE.gotou.boost15=!!data.boost15; updateGotouBoostButton();}
   for(var p=0;p<st.players;p++){
     el=document.getElementById(mode+'Name'+p); if(el&&data.names[p]!=null)el.value=data.names[p];
     el=document.getElementById(mode+'Chip'+p); if(el&&data.chips[p]!=null)el.value=data.chips[p];
@@ -632,10 +805,10 @@ function getRealRowDetail(mode,r){
   return {round:r,values:values,plusValues:plusValues,minusValues:minusValues,hasInput:hasInput};
 }
 function calculateRealMode(mode){
-  var st=REAL_STATE[mode], names=getRealNames(mode), rawTotals=new Array(st.players).fill(0), amountSeriesTotals=new Array(st.players).fill(0), series=[], rankLines=[], roundDetails=[];
+  var st=REAL_STATE[mode], names=getRealNames(mode), scoreFactor=getRealScoreFactor(mode), rawTotals=new Array(st.players).fill(0), amountSeriesTotals=new Array(st.players).fill(0), series=[], rankLines=[], roundDetails=[];
   for(var r=1;r<=st.rows;r++){
     var detail=getRealRowDetail(mode,r), row=detail.values, has=detail.hasInput;
-    for(var p=0;p<st.players;p++){rawTotals[p]+=row[p]; amountSeriesTotals[p]+=row[p]*st.multiplier;}
+    for(var p=0;p<st.players;p++){rawTotals[p]+=row[p]; amountSeriesTotals[p]+=row[p]*st.multiplier*scoreFactor;}
     if(!has)continue;
     roundDetails.push(detail);
     var ranked=row.map(function(v,i){return {i:i,v:v}}).sort(function(a,b){return b.v-a.v});
@@ -646,14 +819,14 @@ function calculateRealMode(mode){
   var chipValue=parseInt((document.getElementById(mode+'ChipValue')||{}).value||st.chipValues[0],10);
   var finalCards='<div class="total-grid">', scoreAmounts=[], chipAmounts=[], finalAmounts=[], chips=[];
   for(var p=0;p<st.players;p++){
-    var chip=numVal(mode+'Chip'+p), scoreAmount=Math.round(rawTotals[p]*st.multiplier), chipAmount=Math.round(chip*chipValue), finalAmount=scoreAmount+chipAmount;
+    var chip=numVal(mode+'Chip'+p), scoreAmount=Math.round(rawTotals[p]*st.multiplier*scoreFactor), chipAmount=Math.round(chip*chipValue), finalAmount=scoreAmount+chipAmount;
     chips[p]=chip; scoreAmounts[p]=scoreAmount; chipAmounts[p]=chipAmount; finalAmounts[p]=finalAmount;
     var finalCls=finalAmount>0?'plus':finalAmount<0?'minus':'zero';
-    finalCards+='<div class="total-card"><div class="name">'+escapeHtml(names[p])+'</div><div class="score '+finalCls+'">'+formatSigned(finalAmount)+'</div><div class="subline">スコア '+formatSigned(scoreAmount)+'</div><div class="subline">チップ '+formatSigned(chipAmount)+'</div><div class="subline">入力合計 '+formatSigned(rawTotals[p])+'</div></div>';
+    finalCards+='<div class="total-card"><div class="name">'+escapeHtml(names[p])+'</div><div class="score '+finalCls+'">'+formatSigned(finalAmount)+'</div><div class="subline">スコア '+formatSigned(scoreAmount)+(scoreFactor!==1?'（×'+scoreFactor+'）':'')+'</div><div class="subline">チップ '+formatSigned(chipAmount)+'</div><div class="subline">入力合計 '+formatSigned(rawTotals[p])+'</div></div>';
   }
   finalCards+='</div>'; var fc=document.getElementById(mode+'FinalCards'); if(fc)fc.innerHTML=finalCards;
   var rb=document.getElementById(mode+'Ranks'); if(rb)rb.innerHTML=rankLines.length?rankLines.map(escapeHtml).join('<br>'):'スコアを入力すると着順を抽出する。';
-  drawRealChart(mode,names,series); return {names:names,totals:rawTotals,scoreAmounts:scoreAmounts,chips:chips,chipAmounts:chipAmounts,finalAmounts:finalAmounts,chipValue:chipValue,series:series,roundDetails:roundDetails,rows:st.rows};
+  drawRealChart(mode,names,series); return {names:names,totals:rawTotals,scoreAmounts:scoreAmounts,chips:chips,chipAmounts:chipAmounts,finalAmounts:finalAmounts,chipValue:chipValue,series:series,roundDetails:roundDetails,rows:st.rows,scoreFactor:scoreFactor,rateMode:(mode==='yonma'?REAL_STATE.yonma.rateMode:null),boost15:(mode==='gotou'?REAL_STATE.gotou.boost15:false)};
 }
 function formatSigned(n){n=Math.round((n+Number.EPSILON)*10)/10; return (n>0?'+':'')+String(n).replace(/\.0$/,'');}
 function drawRealChart(mode,names,series){
@@ -667,7 +840,7 @@ function drawRealChart(mode,names,series){
 function clearRealMode(mode){if(!confirm('入力内容をすべてクリアします。元に戻せません。本当にクリアしますか？'))return; renderRealSheet(mode); showToast('入力内容をクリアしたよ');}
 function loadRealHistory(){try{return JSON.parse(localStorage.getItem(REAL_MODE_KEY)||'[]')}catch(e){return []}}
 function saveRealHistoryList(list){try{localStorage.setItem(REAL_MODE_KEY,JSON.stringify(list))}catch(e){alert('履歴保存に失敗しました')}}
-function saveRealHistory(mode){var result=calculateRealMode(mode), date=(document.getElementById(mode+'Date')||{}).value||todayISO(); if(!confirm(date+' の'+(mode==='yonma'?'四麻':'五等')+'履歴として保存しますか？'))return; var item={id:mode+'_'+date+'_'+Date.now(),mode:mode,date:date,names:result.names,totals:result.totals,scoreAmounts:result.scoreAmounts,chips:result.chips,chipAmounts:result.chipAmounts,finalAmounts:result.finalAmounts,chipValue:result.chipValue,roundDetails:result.roundDetails,rows:result.rows,savedAt:new Date().toISOString()}; var list=loadRealHistory(); list.unshift(item); saveRealHistoryList(list); renderRealHistory(mode); showToast('履歴に保存したよ');}
+function saveRealHistory(mode){var result=calculateRealMode(mode), date=(document.getElementById(mode+'Date')||{}).value||todayISO(); if(!confirm(date+' の'+(mode==='yonma'?'四麻':'五等')+'履歴として保存しますか？'))return; var item={id:mode+'_'+date+'_'+Date.now(),mode:mode,date:date,names:result.names,totals:result.totals,scoreAmounts:result.scoreAmounts,chips:result.chips,chipAmounts:result.chipAmounts,finalAmounts:result.finalAmounts,chipValue:result.chipValue,roundDetails:result.roundDetails,rows:result.rows,scoreFactor:result.scoreFactor,rateMode:result.rateMode,boost15:result.boost15,savedAt:new Date().toISOString()}; var list=loadRealHistory(); list.unshift(item); saveRealHistoryList(list); renderRealHistory(mode); showToast('履歴に保存したよ');}
 function renderRealHistory(mode){
   var box=document.getElementById(mode+'History'); if(!box)return;
   var list=loadRealHistory().filter(function(x){return x.mode===mode});
@@ -675,8 +848,10 @@ function renderRealHistory(mode){
   var mult=REAL_STATE[mode].multiplier, html='';
   list.forEach(function(item){
     html+='<div class="history-item"><div class="history-head"><div class="history-date">'+escapeHtml(item.date)+'</div><div class="history-badge">'+(mode==='yonma'?'四麻':'五等')+'</div></div><div class="history-body">';
+    if(mode==='yonma'&&item.rateMode)html+='モード：'+escapeHtml(item.rateMode.replace('-half','ハーフ'))+'\n';
+    if(mode==='gotou'&&item.boost15)html+='スコア合計：1.5倍適用\n';
     item.names.forEach(function(n,i){
-      var scoreAmount=(item.scoreAmounts&&item.scoreAmounts[i]!=null)?item.scoreAmounts[i]:Math.round((item.totals[i]||0)*mult);
+      var historyFactor=(item.scoreFactor!=null?Number(item.scoreFactor):1); var scoreAmount=(item.scoreAmounts&&item.scoreAmounts[i]!=null)?item.scoreAmounts[i]:Math.round((item.totals[i]||0)*mult*historyFactor);
       var chipAmount=(item.chipAmounts&&item.chipAmounts[i]!=null)?item.chipAmounts[i]:0;
       var finalAmount=(item.finalAmounts&&item.finalAmounts[i]!=null)?item.finalAmounts[i]:scoreAmount+chipAmount;
       html+=escapeHtml(n)+'：'+formatSigned(finalAmount)+'（スコア '+formatSigned(scoreAmount)+' / チップ '+formatSigned(chipAmount)+'）\n';
