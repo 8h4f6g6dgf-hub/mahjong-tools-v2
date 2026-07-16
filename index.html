@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.2.0</title>
+<title>麻雀収支ツール v4.3.0</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -137,7 +137,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 @media (min-width:720px){.total-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.total-card{display:block;text-align:center}.total-card .score{text-align:center}.real-sheet input{min-width:54px}.real-sheet .player-name{min-width:96px}}
 
 
-/* v4.2.0: 実戦スコア表の視認性・固定表示 */
+/* v4.3.0: 実戦スコア表の視認性・固定表示 */
 .sheet-wrap{overflow:auto;max-height:min(72vh,760px);-webkit-overflow-scrolling:touch}
 .real-sheet thead th{position:sticky;z-index:7}
 .real-sheet thead tr:first-child th{top:0}
@@ -155,7 +155,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .history-rounds{margin-top:8px;font-size:13px;line-height:1.65;white-space:pre-wrap;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
 
 
-/* v4.2.0: Excel風ウィンドウ固定とレート操作 */
+/* v4.3.0: Excel風ウィンドウ固定とレート操作 */
 .sheet-wrap{
   position:relative;
   overflow:auto;
@@ -246,7 +246,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v4.2.0: 画面スクロールにも追従する固定ヘッダー */
+/* v4.3.0: 画面スクロールにも追従する固定ヘッダー */
 .real-floating-header{
   display:none;
   position:fixed;
@@ -343,7 +343,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v4.2.0 雀魂JSON読込 */
+/* v4.3.0 雀魂JSON読込 */
 .json-import-card{
   border:1px solid #c4b5fd;
   background:linear-gradient(180deg,#faf5ff,#f8fafc);
@@ -398,7 +398,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v4.2.0 雀魂専用タブ */
+/* v4.3.0 雀魂専用タブ */
 .majsoul-table-wrap{overflow:auto;border:1px solid #dbe3ef;border-radius:14px}
 .majsoul-table{width:100%;min-width:560px;border-collapse:collapse;table-layout:fixed}
 .majsoul-table th,.majsoul-table td{padding:10px 8px;text-align:center;border-bottom:1px solid #e2e8f0}
@@ -411,10 +411,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.2.0</span></h1>
-    <p id="appSubTitle" class="sub">v4.2.0：雀魂専用タブを追加し、三麻の手入力とJSON読込を分離しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.3.0</span></h1>
+    <p id="appSubTitle" class="sub">v4.3.0：雀魂タブの表示不具合を修正し、JSON読込画面を復活しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.2.0</div>
+  <div id="status" class="status">JS起動OK：v4.3.0</div>
 
 
   <div class="tabs">
@@ -533,7 +533,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
         <button class="primary" type="button" onclick="readSanmaJsonFile()">JSONを読み込む</button>
       </div>
       <div id="sanmaJsonStatus" class="json-import-status">JSONファイルを選択してください。</div>
-      <div class="json-format-note">今後、雀魂共有URLの解析機能もこのタブへ追加します。</div>
+      <div class="json-format-note">現在は解析済みJSONの読込に対応しています。今後、雀魂共有URLの解析機能もこのタブへ追加します。</div>
     </section>
 
     <section id="majsoulResultCard" class="card" style="display:none">
@@ -569,7 +569,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.2.0',build:'420'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.3.0',build:'430'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -817,7 +817,7 @@ function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'
 function escapeJs(str){return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function setupSmoothDetails(){}
 if(document.getElementById('mtDate')){document.getElementById('mtDate').value=getTodayString()}resetMembers();renderMemberList();renderHistory();calculateOnly();setupSmoothDetails();loadAppConfig();loadMTournamentData();
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=420').catch(function(){})})}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=430').catch(function(){})})}
 
 document.addEventListener('DOMContentLoaded',function(){
   var mtDate=document.getElementById('mtDate');
@@ -838,15 +838,31 @@ var REAL_STATE={
   sanma:{players:3, rows:10, multiplier:1000, chipValues:[100,300,500], defaultNames:['たい','まさ','ゆうひ']}
 };
 function switchAppTab(tab){
-  ['mt','yonma','gotou','sanma'].forEach(function(t){
+  ['mt','yonma','gotou','sanma','majsoul'].forEach(function(t){
     var p=document.getElementById('tab-'+t),b=document.getElementById('tabBtn-'+t);
-    if(p)p.classList.toggle('active',t===tab); if(b)b.classList.toggle('active',t===tab);
+    if(p)p.classList.toggle('active',t===tab);
+    if(b)b.classList.toggle('active',t===tab);
   });
   if(tab==='yonma')markRealDirty('yonma');
   if(tab==='gotou')markRealDirty('gotou');
   if(tab==='sanma')markRealDirty('sanma');
+  if(tab==='majsoul')renderMajsoulHistory();
   setTimeout(updateFloatingHeader,0);
 }
+
+function ensureAppTabsReady(){
+  ['mt','yonma','gotou','sanma','majsoul'].forEach(function(t){
+    var panel=document.getElementById('tab-'+t);
+    var button=document.getElementById('tabBtn-'+t);
+    if(panel&&t!=='mt')panel.classList.remove('active');
+    if(button&&t!=='mt')button.classList.remove('active');
+  });
+  var mtPanel=document.getElementById('tab-mt');
+  var mtButton=document.getElementById('tabBtn-mt');
+  if(mtPanel)mtPanel.classList.add('active');
+  if(mtButton)mtButton.classList.add('active');
+}
+
 function todayISO(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+day}
 
 var SANMA_JSON_PENDING_FILE=null;
