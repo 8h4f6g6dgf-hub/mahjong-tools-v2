@@ -136,15 +136,33 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 @media (orientation:landscape) and (max-height:520px){.real-settings{grid-template-columns:repeat(3,minmax(0,1fr));align-items:end}.real-sheet{font-size:12px}.real-sheet th,.real-sheet td{padding:3px}.real-sheet input{min-height:32px;min-width:38px;font-size:13px;padding:4px 2px}.real-sheet .player-name{min-width:68px}.total-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.total-card{display:block;text-align:center;padding:10px}.total-card .score{text-align:center;font-size:20px}}
 @media (min-width:720px){.total-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.total-card{display:block;text-align:center}.total-card .score{text-align:center}.real-sheet input{min-width:54px}.real-sheet .player-name{min-width:96px}}
 
+
+/* v3.1.2: 実戦スコア表の視認性・固定表示 */
+.sheet-wrap{overflow:auto;max-height:min(72vh,760px);-webkit-overflow-scrolling:touch}
+.real-sheet thead th{position:sticky;z-index:7}
+.real-sheet thead tr:first-child th{top:0}
+.real-sheet thead tr:nth-child(2) th{top:55px}
+.real-sheet thead .game-no{top:0!important;z-index:10!important}
+.real-sheet thead .player-name{z-index:8;background:#eef6ff!important}
+.real-sheet thead .player-name input{background:#fff}
+.real-sheet tbody tr.score-block-a td{background:#ffffff}
+.real-sheet tbody tr.score-block-b td{background:#f1f7f4}
+.real-sheet tbody tr.score-block-a .game-no{background:#f8fafc!important}
+.real-sheet tbody tr.score-block-b .game-no{background:#e7f1eb!important}
+.real-sheet tbody tr.block-start td{border-top:2px solid #94a3b8}
+.history-detail{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px}
+.history-detail summary{font-size:13px;font-weight:900;color:#334155;cursor:pointer}
+.history-rounds{margin-top:8px;font-size:13px;line-height:1.65;white-space:pre-wrap;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
+
 </style>
 </head>
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v3.0.7</span></h1>
-    <p id="appSubTitle" class="sub">v3.0.9：四麻・五等の計算停止不具合を修正。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v3.1.2</span></h1>
+    <p id="appSubTitle" class="sub">v3.1.2：実戦入力・履歴表示の抜けを修正。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v3.0.7</div>
+  <div id="status" class="status">JS起動OK：v3.1.2</div>
 
 
   <div class="tabs">
@@ -262,7 +280,7 @@ async function loadAppConfig(){
   }
 }
 function applyAppConfig(){
-  var version=APP_CONFIG.version||'2.5.5';
+  var version=APP_CONFIG.version||'3.1.2';
   var build=APP_CONFIG.build||'255';
   var badge=document.getElementById('appVersionBadge');
   var sub=document.getElementById('appSubTitle');
@@ -434,7 +452,7 @@ function getSelectedMTMatch(){var date=normalizeMTDate(document.getElementById('
 function onMTMatchChange(){var match=getSelectedMTMatch();renderRideSelectors(match?match.players:[],!match);setScoreStatus(match?'4人分の乗り先を選ぶと、スコアがある場合は自動反映するよ。':'試合を選択してね。');syncMTToSaveInfo();autoCalculate();tryAutoApplyMTournamentScores()}
 function renderRideSelectors(players,disabled){var box=document.getElementById('mtRideSelectors'),members=getAutoMembers(),html='',i,j;if(!box)return;for(i=0;i<members.length;i++){html+='<div class="ride-row"><div class="ride-user">'+escapeHtml(members[i])+'</div><select id="mtRide-'+escapeHtml(members[i])+'" onchange="onRideSelectionChange()" '+(disabled?'disabled':'')+'>';if(!players||!players.length){html+='<option value="">試合を選択</option>'}else{html+='<option value="">選択してください</option>';for(j=0;j<players.length;j++)html+='<option value="'+escapeHtml(players[j])+'">'+escapeHtml(players[j])+'</option>'}html+='</select></div>'}box.innerHTML=html;validateRideSelections(false)}
 function getRideMap(){var members=getAutoMembers(),map={},el,i;for(i=0;i<members.length;i++){el=document.getElementById('mtRide-'+members[i]);map[members[i]]=el?el.value:''}return map}
-function rideMapText(map){var members=getAutoMembers(),lines=[],i;map=map||getRideMap();for(i=0;i<members.length;i++){if(map[members[i]])lines.push(members[i]+' → '+map[members[i]])}return lines.join('\\n')}
+function rideMapText(map){var members=getAutoMembers(),lines=[],i;map=map||getRideMap();for(i=0;i<members.length;i++){if(map[members[i]])lines.push(members[i]+' → '+map[members[i]])}return lines.join('\n')}
 function syncMTToSaveInfo(){}
 function onRideSelectionChange(){validateRideSelections(false);setScoreStatus('乗り先を変更したよ。4人分そろうとJSONのスコアを自動反映する。');autoCalculate();tryAutoApplyMTournamentScores()}
 function validateRideSelections(showMessage){var map=getRideMap(),seen={},dup=[],selected=0,member;for(member in map){var v=map[member];if(!v)continue;selected++;if(seen[v]&&!dup.includes(v))dup.push(v);seen[v]=true}var err=document.getElementById('mtRideError');if(dup.length){if(err){err.textContent='乗り先選手が重複しています：'+dup.join('、');err.style.display='block'}if(showMessage)showToast('乗り先が重複してるよ');return false}if(err){err.textContent='';err.style.display='none'}return true}
@@ -521,7 +539,8 @@ function renderRealSheet(mode){
   for(var p=0;p<st.players;p++){html+='<th class="player-name" colspan="2"><input id="'+mode+'Name'+p+'" value="'+escapeHtml(names[p]||'')+'" placeholder="名前" oninput="saveRealNames(\''+mode+'\');handleRealInput(\''+mode+'\')"></th>'}
   html+='</tr><tr>'; for(p=0;p<st.players;p++){html+='<th class="pm-head">＋</th><th class="pm-head">−</th>'} html+='</tr></thead><tbody>';
   for(var r=1;r<=st.rows;r++){
-    html+='<tr><td class="game-no">'+r+'</td>'; for(p=0;p<st.players;p++){html+='<td><input id="'+mode+'R'+r+'P'+p+'Plus" inputmode="decimal" placeholder="+" oninput="handleRealInput(\''+mode+'\')"></td><td><input id="'+mode+'R'+r+'P'+p+'Minus" inputmode="decimal" placeholder="−" oninput="handleRealInput(\''+mode+'\')"></td>'} html+='</tr>';
+    var blockClass=(Math.floor((r-1)/10)%2===0?'score-block-a':'score-block-b')+(r>1&&(r-1)%10===0?' block-start':'');
+    html+='<tr class="'+blockClass+'"><td class="game-no">'+r+'</td>'; for(p=0;p<st.players;p++){html+='<td><input id="'+mode+'R'+r+'P'+p+'Plus" inputmode="decimal" placeholder="+" oninput="handleRealInput(\''+mode+'\')"></td><td><input id="'+mode+'R'+r+'P'+p+'Minus" inputmode="decimal" placeholder="−" oninput="handleRealInput(\''+mode+'\')"></td>'} html+='</tr>';
   }
   html+='<tr class="subtotal-row final-subtotal-row"><td class="subtotal-label game-no">合計</td>'; for(p=0;p<st.players;p++){html+='<td colspan="2"><div id="'+mode+'FinalSubtotalP'+p+'" class="subtotal-score">0</div></td>'} html+='</tr>';
   html+='</tbody></table></div>'; box.innerHTML=html; renderChipInputs(mode); handleRealInput(mode);
@@ -601,12 +620,24 @@ function markRealDirty(mode){
 function getRealNames(mode){var st=REAL_STATE[mode], arr=[]; for(var p=0;p<st.players;p++){var el=document.getElementById(mode+'Name'+p); arr.push((el&&el.value.trim())||st.defaultNames[p]||('P'+(p+1)))} return arr;}
 function numVal(id){var el=document.getElementById(id); if(!el||el.value==='')return 0; var s=String(el.value).replace(/[＋,]/g,'+').replace(/[−ー―]/g,'-'); var n=parseFloat(s); return isNaN(n)?0:n;}
 function getRealRowScores(mode,r){var st=REAL_STATE[mode], scores=[]; for(var p=0;p<st.players;p++){var plus=numVal(mode+'R'+r+'P'+p+'Plus'), minus=numVal(mode+'R'+r+'P'+p+'Minus'); scores.push(plus-minus);} return scores;}
+function getRealRowDetail(mode,r){
+  var st=REAL_STATE[mode], values=[], hasInput=false, plusValues=[], minusValues=[];
+  for(var p=0;p<st.players;p++){
+    var plusEl=document.getElementById(mode+'R'+r+'P'+p+'Plus'), minusEl=document.getElementById(mode+'R'+r+'P'+p+'Minus');
+    var plusRaw=plusEl?plusEl.value:'', minusRaw=minusEl?minusEl.value:'';
+    if(plusRaw!==''||minusRaw!=='')hasInput=true;
+    var plus=numVal(mode+'R'+r+'P'+p+'Plus'), minus=numVal(mode+'R'+r+'P'+p+'Minus');
+    plusValues.push(plus); minusValues.push(minus); values.push(plus-minus);
+  }
+  return {round:r,values:values,plusValues:plusValues,minusValues:minusValues,hasInput:hasInput};
+}
 function calculateRealMode(mode){
-  var st=REAL_STATE[mode], names=getRealNames(mode), rawTotals=new Array(st.players).fill(0), amountSeriesTotals=new Array(st.players).fill(0), series=[], rankLines=[];
+  var st=REAL_STATE[mode], names=getRealNames(mode), rawTotals=new Array(st.players).fill(0), amountSeriesTotals=new Array(st.players).fill(0), series=[], rankLines=[], roundDetails=[];
   for(var r=1;r<=st.rows;r++){
-    var row=getRealRowScores(mode,r), has=row.some(function(v){return v!==0});
+    var detail=getRealRowDetail(mode,r), row=detail.values, has=detail.hasInput;
     for(var p=0;p<st.players;p++){rawTotals[p]+=row[p]; amountSeriesTotals[p]+=row[p]*st.multiplier;}
     if(!has)continue;
+    roundDetails.push(detail);
     var ranked=row.map(function(v,i){return {i:i,v:v}}).sort(function(a,b){return b.v-a.v});
     rankLines.push(r+'半荘目：'+ranked.map(function(x,idx){return (idx+1)+'位 '+names[x.i]+'('+formatSigned(x.v)+')'}).join(' / '));
     series.push(amountSeriesTotals.slice());
@@ -622,7 +653,7 @@ function calculateRealMode(mode){
   }
   finalCards+='</div>'; var fc=document.getElementById(mode+'FinalCards'); if(fc)fc.innerHTML=finalCards;
   var rb=document.getElementById(mode+'Ranks'); if(rb)rb.innerHTML=rankLines.length?rankLines.map(escapeHtml).join('<br>'):'スコアを入力すると着順を抽出する。';
-  drawRealChart(mode,names,series); return {names:names,totals:rawTotals,scoreAmounts:scoreAmounts,chips:chips,chipAmounts:chipAmounts,finalAmounts:finalAmounts,chipValue:chipValue,series:series};
+  drawRealChart(mode,names,series); return {names:names,totals:rawTotals,scoreAmounts:scoreAmounts,chips:chips,chipAmounts:chipAmounts,finalAmounts:finalAmounts,chipValue:chipValue,series:series,roundDetails:roundDetails,rows:st.rows};
 }
 function formatSigned(n){n=Math.round((n+Number.EPSILON)*10)/10; return (n>0?'+':'')+String(n).replace(/\.0$/,'');}
 function drawRealChart(mode,names,series){
@@ -636,8 +667,34 @@ function drawRealChart(mode,names,series){
 function clearRealMode(mode){if(!confirm('入力内容をすべてクリアします。元に戻せません。本当にクリアしますか？'))return; renderRealSheet(mode); showToast('入力内容をクリアしたよ');}
 function loadRealHistory(){try{return JSON.parse(localStorage.getItem(REAL_MODE_KEY)||'[]')}catch(e){return []}}
 function saveRealHistoryList(list){try{localStorage.setItem(REAL_MODE_KEY,JSON.stringify(list))}catch(e){alert('履歴保存に失敗しました')}}
-function saveRealHistory(mode){var result=calculateRealMode(mode), date=(document.getElementById(mode+'Date')||{}).value||todayISO(); if(!confirm(date+' の'+(mode==='yonma'?'四麻':'五等')+'履歴として保存しますか？'))return; var item={id:mode+'_'+date+'_'+Date.now(),mode:mode,date:date,names:result.names,totals:result.totals,scoreAmounts:result.scoreAmounts,chips:result.chips,chipAmounts:result.chipAmounts,finalAmounts:result.finalAmounts,chipValue:result.chipValue,savedAt:new Date().toISOString()}; var list=loadRealHistory(); list.unshift(item); saveRealHistoryList(list); renderRealHistory(mode); showToast('履歴に保存したよ');}
-function renderRealHistory(mode){var box=document.getElementById(mode+'History'); if(!box)return; var list=loadRealHistory().filter(function(x){return x.mode===mode}); if(!list.length){box.innerHTML='<div class="small">まだ履歴はありません。</div>';return;} var mult=REAL_STATE[mode].multiplier, html=''; list.forEach(function(item){html+='<div class="history-item"><div class="history-head"><div class="history-date">'+escapeHtml(item.date)+'</div><div class="history-badge">'+(mode==='yonma'?'四麻':'五等')+'</div></div><div class="history-body">'; item.names.forEach(function(n,i){var scoreAmount=(item.scoreAmounts&&item.scoreAmounts[i]!=null)?item.scoreAmounts[i]:Math.round((item.totals[i]||0)*mult); var chipAmount=(item.chipAmounts&&item.chipAmounts[i]!=null)?item.chipAmounts[i]:0; var finalAmount=(item.finalAmounts&&item.finalAmounts[i]!=null)?item.finalAmounts[i]:scoreAmount+chipAmount; html+=escapeHtml(n)+'：'+formatSigned(finalAmount)+'（スコア '+formatSigned(scoreAmount)+' / チップ '+formatSigned(chipAmount)+'）\n'}); html+='</div></div>';}); box.innerHTML=html;}
+function saveRealHistory(mode){var result=calculateRealMode(mode), date=(document.getElementById(mode+'Date')||{}).value||todayISO(); if(!confirm(date+' の'+(mode==='yonma'?'四麻':'五等')+'履歴として保存しますか？'))return; var item={id:mode+'_'+date+'_'+Date.now(),mode:mode,date:date,names:result.names,totals:result.totals,scoreAmounts:result.scoreAmounts,chips:result.chips,chipAmounts:result.chipAmounts,finalAmounts:result.finalAmounts,chipValue:result.chipValue,roundDetails:result.roundDetails,rows:result.rows,savedAt:new Date().toISOString()}; var list=loadRealHistory(); list.unshift(item); saveRealHistoryList(list); renderRealHistory(mode); showToast('履歴に保存したよ');}
+function renderRealHistory(mode){
+  var box=document.getElementById(mode+'History'); if(!box)return;
+  var list=loadRealHistory().filter(function(x){return x.mode===mode});
+  if(!list.length){box.innerHTML='<div class="small">まだ履歴はありません。</div>';return;}
+  var mult=REAL_STATE[mode].multiplier, html='';
+  list.forEach(function(item){
+    html+='<div class="history-item"><div class="history-head"><div class="history-date">'+escapeHtml(item.date)+'</div><div class="history-badge">'+(mode==='yonma'?'四麻':'五等')+'</div></div><div class="history-body">';
+    item.names.forEach(function(n,i){
+      var scoreAmount=(item.scoreAmounts&&item.scoreAmounts[i]!=null)?item.scoreAmounts[i]:Math.round((item.totals[i]||0)*mult);
+      var chipAmount=(item.chipAmounts&&item.chipAmounts[i]!=null)?item.chipAmounts[i]:0;
+      var finalAmount=(item.finalAmounts&&item.finalAmounts[i]!=null)?item.finalAmounts[i]:scoreAmount+chipAmount;
+      html+=escapeHtml(n)+'：'+formatSigned(finalAmount)+'（スコア '+formatSigned(scoreAmount)+' / チップ '+formatSigned(chipAmount)+'）\n';
+    });
+    if(item.roundDetails&&item.roundDetails.length){
+      var lines=[];
+      item.roundDetails.forEach(function(rd){
+        var values=rd.values||[];
+        lines.push(rd.round+'半荘目：'+item.names.map(function(n,i){return n+' '+formatSigned(Number(values[i]||0));}).join(' / '));
+      });
+      html+='<details class="history-detail"><summary>半荘別スコア（'+item.roundDetails.length+'半荘）</summary><div class="history-rounds">'+escapeHtml(lines.join('\n'))+'</div></details>';
+    }else{
+      html+='<div class="small">この履歴は旧バージョンで保存されたため、半荘別スコアはありません。</div>';
+    }
+    html+='</div></div>';
+  });
+  box.innerHTML=html;
+}
 setTimeout(initRealModes,0);
 
 </script>
