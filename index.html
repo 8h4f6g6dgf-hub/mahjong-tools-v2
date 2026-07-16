@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.3.0</title>
+<title>麻雀収支ツール v4.4.0</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -137,7 +137,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 @media (min-width:720px){.total-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.total-card{display:block;text-align:center}.total-card .score{text-align:center}.real-sheet input{min-width:54px}.real-sheet .player-name{min-width:96px}}
 
 
-/* v4.3.0: 実戦スコア表の視認性・固定表示 */
+/* v4.4.0: 実戦スコア表の視認性・固定表示 */
 .sheet-wrap{overflow:auto;max-height:min(72vh,760px);-webkit-overflow-scrolling:touch}
 .real-sheet thead th{position:sticky;z-index:7}
 .real-sheet thead tr:first-child th{top:0}
@@ -155,7 +155,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .history-rounds{margin-top:8px;font-size:13px;line-height:1.65;white-space:pre-wrap;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
 
 
-/* v4.3.0: Excel風ウィンドウ固定とレート操作 */
+/* v4.4.0: Excel風ウィンドウ固定とレート操作 */
 .sheet-wrap{
   position:relative;
   overflow:auto;
@@ -246,7 +246,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v4.3.0: 画面スクロールにも追従する固定ヘッダー */
+/* v4.4.0: 画面スクロールにも追従する固定ヘッダー */
 .real-floating-header{
   display:none;
   position:fixed;
@@ -343,7 +343,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v4.3.0 雀魂JSON読込 */
+/* v4.4.0 雀魂JSON読込 */
 .json-import-card{
   border:1px solid #c4b5fd;
   background:linear-gradient(180deg,#faf5ff,#f8fafc);
@@ -398,7 +398,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v4.3.0 雀魂専用タブ */
+/* v4.4.0 雀魂専用タブ */
 .majsoul-table-wrap{overflow:auto;border:1px solid #dbe3ef;border-radius:14px}
 .majsoul-table{width:100%;min-width:560px;border-collapse:collapse;table-layout:fixed}
 .majsoul-table th,.majsoul-table td{padding:10px 8px;text-align:center;border-bottom:1px solid #e2e8f0}
@@ -406,15 +406,79 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .majsoul-table tbody tr:nth-child(even){background:#f8fafc}
 .majsoul-table .round-col{position:sticky;left:0;z-index:1;background:inherit;font-weight:900}
 .majsoul-meta{margin-top:10px;font-size:12px;line-height:1.6;color:#64748b}
+
+/* v4.4.0 雀魂URL入力 */
+.majsoul-url-card{
+  border:1px solid #c4b5fd;
+  background:linear-gradient(180deg,#faf5ff,#f8fafc);
+}
+.majsoul-url-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:end;
+  margin-top:14px;
+}
+.majsoul-url-label{
+  display:block;
+}
+.majsoul-url-label strong{
+  display:block;
+  margin-bottom:7px;
+}
+.majsoul-url-label input{
+  width:100%;
+  min-height:48px;
+  font-size:15px;
+}
+.majsoul-paipu-id{
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:10px;
+  background:#eef2ff;
+  color:#3730a3;
+  font-size:12px;
+  line-height:1.5;
+}
+.majsoul-paipu-id span{
+  display:block;
+  margin-bottom:4px;
+  font-weight:800;
+}
+.majsoul-paipu-id code{
+  word-break:break-all;
+  white-space:normal;
+}
+.majsoul-advanced{
+  margin-top:14px;
+  border-top:1px solid #ddd6fe;
+  padding-top:10px;
+}
+.majsoul-advanced summary{
+  cursor:pointer;
+  color:#5b21b6;
+  font-weight:850;
+}
+.majsoul-advanced .advanced-inner{
+  margin-top:12px;
+  padding:12px;
+  border-radius:12px;
+  background:rgba(255,255,255,.76);
+}
+@media(max-width:600px){
+  .majsoul-url-grid{grid-template-columns:1fr}
+  .majsoul-url-grid button{width:100%}
+}
+
 </style>
 </head>
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.3.0</span></h1>
-    <p id="appSubTitle" class="sub">v4.3.0：雀魂タブの表示不具合を修正し、JSON読込画面を復活しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.4.0</span></h1>
+    <p id="appSubTitle" class="sub">v4.4.0：雀魂牌譜URL入力をメイン化し、JSON読込を詳細設定へ移動しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.3.0</div>
+  <div id="status" class="status">JS起動OK：v4.4.0</div>
 
 
   <div class="tabs">
@@ -522,18 +586,41 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 
 
   <div id="tab-majsoul" class="tab-panel">
-    <section class="card json-import-card">
+    <section class="card majsoul-url-card">
       <h2>雀魂連携（β）</h2>
-      <p class="sub">解析済みの三麻JSONを読み込み、結果・半荘別スコア・チップを確認します。</p>
-      <div class="json-import-grid">
-        <label class="json-file-label">
-          <strong>JSONファイル</strong>
-          <input id="sanmaJsonFile" type="file" accept=".json,application/json" onchange="onSanmaJsonFileSelected()">
+      <p class="sub">雀魂の共有牌譜URLを貼り付けてください。現在はURL形式の確認と牌譜IDの抽出まで対応しています。</p>
+
+      <div class="majsoul-url-grid">
+        <label class="majsoul-url-label">
+          <strong>雀魂牌譜URL</strong>
+          <input id="majsoulPaipuUrl" type="url" inputmode="url" autocomplete="off"
+                 placeholder="https://game.mahjongsoul.com/?paipu=..."
+                 oninput="onMajsoulUrlInput()">
         </label>
-        <button class="primary" type="button" onclick="readSanmaJsonFile()">JSONを読み込む</button>
+        <button id="majsoulUrlLoadBtn" class="primary" type="button" onclick="parseMajsoulUrl()">読み込む</button>
       </div>
-      <div id="sanmaJsonStatus" class="json-import-status">JSONファイルを選択してください。</div>
-      <div class="json-format-note">現在は解析済みJSONの読込に対応しています。今後、雀魂共有URLの解析機能もこのタブへ追加します。</div>
+
+      <div id="majsoulUrlStatus" class="json-import-status">待機中：雀魂の共有牌譜URLを入力してください。</div>
+      <div id="majsoulPaipuIdBox" class="majsoul-paipu-id" style="display:none">
+        <span>抽出した牌譜ID</span>
+        <code id="majsoulPaipuId"></code>
+      </div>
+
+      <details class="majsoul-advanced">
+        <summary>詳細設定・復元用</summary>
+        <div class="advanced-inner">
+          <p class="sub">URL解析のテスト、復元、障害時の予備手段として、解析済みJSONを直接読み込めます。</p>
+          <div class="json-import-grid">
+            <label class="json-file-label">
+              <strong>解析済みJSONファイル</strong>
+              <input id="sanmaJsonFile" type="file" accept=".json,application/json" onchange="onSanmaJsonFileSelected()">
+            </label>
+            <button class="secondary" type="button" onclick="readSanmaJsonFile()">JSONを読み込む</button>
+          </div>
+          <div id="sanmaJsonStatus" class="json-import-status">JSONファイルは未選択です。</div>
+          <div class="json-format-note">対応形式：version 1 / mode sanma / players 3人 / hands配列。</div>
+        </div>
+      </details>
     </section>
 
     <section id="majsoulResultCard" class="card" style="display:none">
@@ -569,7 +656,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.3.0',build:'430'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.4.0',build:'440'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -817,7 +904,7 @@ function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'
 function escapeJs(str){return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function setupSmoothDetails(){}
 if(document.getElementById('mtDate')){document.getElementById('mtDate').value=getTodayString()}resetMembers();renderMemberList();renderHistory();calculateOnly();setupSmoothDetails();loadAppConfig();loadMTournamentData();
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=430').catch(function(){})})}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=440').catch(function(){})})}
 
 document.addEventListener('DOMContentLoaded',function(){
   var mtDate=document.getElementById('mtDate');
@@ -867,6 +954,101 @@ function todayISO(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),da
 
 var SANMA_JSON_PENDING_FILE=null;
 var MAJSOUL_IMPORTED_DATA=null;
+var MAJSOUL_PAIPU_ID='';
+var MAJSOUL_PAIPU_URL='';
+
+
+function setMajsoulUrlStatus(message,type){
+  var el=document.getElementById('majsoulUrlStatus');
+  if(!el)return;
+  el.textContent=message;
+  el.classList.remove('error','success');
+  if(type)el.classList.add(type);
+}
+function onMajsoulUrlInput(){
+  var input=document.getElementById('majsoulPaipuUrl');
+  var value=input?String(input.value||'').trim():'';
+  MAJSOUL_PAIPU_ID='';
+  MAJSOUL_PAIPU_URL=value;
+  var idBox=document.getElementById('majsoulPaipuIdBox');
+  if(idBox)idBox.style.display='none';
+  if(!value){
+    setMajsoulUrlStatus('待機中：雀魂の共有牌譜URLを入力してください。','');
+  }else{
+    setMajsoulUrlStatus('待機中：URLを確認して「読み込む」を押してください。','');
+  }
+}
+function extractMajsoulPaipuId(value){
+  var raw=String(value||'').trim();
+  if(!raw)throw new Error('牌譜URLが入力されていません');
+
+  // URLではなく牌譜IDだけ貼られた場合も受け付ける。
+  var idPattern=/^\d{6}-[0-9a-f-]{36}_[0-9a-z]+$/i;
+  if(idPattern.test(raw))return raw;
+
+  var parsed;
+  try{
+    parsed=new URL(raw);
+  }catch(e){
+    throw new Error('URLの形式が正しくありません');
+  }
+
+  var host=String(parsed.hostname||'').toLowerCase();
+  if(host!=='game.mahjongsoul.com'&&!host.endsWith('.mahjongsoul.com')){
+    throw new Error('雀魂の共有URLではありません');
+  }
+
+  var paipu=parsed.searchParams.get('paipu');
+  if(!paipu&&parsed.hash){
+    var hash=parsed.hash.replace(/^#/,'');
+    try{
+      var hashParams=new URLSearchParams(hash.indexOf('?')>=0?hash.split('?')[1]:hash);
+      paipu=hashParams.get('paipu');
+    }catch(e){}
+  }
+  if(!paipu)throw new Error('URL内にpaipu情報が見つかりません');
+
+  paipu=decodeURIComponent(paipu).trim();
+  if(!idPattern.test(paipu)){
+    throw new Error('牌譜IDの形式を確認できません');
+  }
+  return paipu;
+}
+function parseMajsoulUrl(){
+  var input=document.getElementById('majsoulPaipuUrl');
+  var raw=input?String(input.value||'').trim():'';
+  var button=document.getElementById('majsoulUrlLoadBtn');
+
+  if(button)button.disabled=true;
+  setMajsoulUrlStatus('解析中：共有URLを確認しています…','');
+
+  window.setTimeout(function(){
+    try{
+      var paipuId=extractMajsoulPaipuId(raw);
+      MAJSOUL_PAIPU_ID=paipuId;
+      MAJSOUL_PAIPU_URL=raw;
+
+      var idEl=document.getElementById('majsoulPaipuId');
+      var idBox=document.getElementById('majsoulPaipuIdBox');
+      if(idEl)idEl.textContent=paipuId;
+      if(idBox)idBox.style.display='block';
+
+      setMajsoulUrlStatus(
+        'URL確認成功：牌譜IDを抽出しました。実際の牌譜データ取得は次のバージョンで接続します。',
+        'success'
+      );
+      showToast('牌譜URLを確認したよ');
+    }catch(e){
+      MAJSOUL_PAIPU_ID='';
+      var idBox=document.getElementById('majsoulPaipuIdBox');
+      if(idBox)idBox.style.display='none';
+      setMajsoulUrlStatus('読込失敗：'+(e&&e.message?e.message:'URLを確認してください'),'error');
+      showToast('雀魂URLを確認してね');
+    }finally{
+      if(button)button.disabled=false;
+    }
+  },250);
+}
 
 function setSanmaJsonStatus(message,type){
   var el=document.getElementById('sanmaJsonStatus');
@@ -1067,8 +1249,13 @@ function clearMajsoulResult(){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   var input=document.getElementById('sanmaJsonFile');if(input)input.value='';
+  var urlInput=document.getElementById('majsoulPaipuUrl');if(urlInput)urlInput.value='';
   SANMA_JSON_PENDING_FILE=null;
-  setSanmaJsonStatus('JSONファイルを選択してください。','');
+  MAJSOUL_PAIPU_ID='';
+  MAJSOUL_PAIPU_URL='';
+  var idBox=document.getElementById('majsoulPaipuIdBox');if(idBox)idBox.style.display='none';
+  setSanmaJsonStatus('JSONファイルは未選択です。','');
+  setMajsoulUrlStatus('待機中：雀魂の共有牌譜URLを入力してください。','');
   showToast('読み込み結果をクリアしたよ');
 }
 function validateSanmaJson(raw){
