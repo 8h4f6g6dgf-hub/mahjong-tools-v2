@@ -1,8 +1,8 @@
 {
   "name": "麻雀収支ツール",
-  "version": "3.1.3",
-  "build": "313",
+  "version": "3.1.4",
+  "build": "314",
   "releaseDate": "2026-07-16",
   "dataVersion": "2.5.5",
-  "description": "Excel風固定表示、四麻7236/9348・ハーフ、五等スコア1.5倍に対応"
+  "description": "追従固定ヘッダー、五等スコア選択、半荘別ゼロサム確認に対応"
 }
