@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v3.1.4</title>
+<title>麻雀収支ツール v4.0.0</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -137,7 +137,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 @media (min-width:720px){.total-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.total-card{display:block;text-align:center}.total-card .score{text-align:center}.real-sheet input{min-width:54px}.real-sheet .player-name{min-width:96px}}
 
 
-/* v3.1.4: 実戦スコア表の視認性・固定表示 */
+/* v4.0.0: 実戦スコア表の視認性・固定表示 */
 .sheet-wrap{overflow:auto;max-height:min(72vh,760px);-webkit-overflow-scrolling:touch}
 .real-sheet thead th{position:sticky;z-index:7}
 .real-sheet thead tr:first-child th{top:0}
@@ -155,7 +155,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .history-rounds{margin-top:8px;font-size:13px;line-height:1.65;white-space:pre-wrap;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px}
 
 
-/* v3.1.4: Excel風ウィンドウ固定とレート操作 */
+/* v4.0.0: Excel風ウィンドウ固定とレート操作 */
 .sheet-wrap{
   position:relative;
   overflow:auto;
@@ -246,7 +246,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 }
 
 
-/* v3.1.4: 画面スクロールにも追従する固定ヘッダー */
+/* v4.0.0: 画面スクロールにも追従する固定ヘッダー */
 .real-floating-header{
   display:none;
   position:fixed;
@@ -347,16 +347,17 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v3.1.4</span></h1>
-    <p id="appSubTitle" class="sub">v3.1.4：追従ヘッダー・五等プルダウン・半荘別ゼロサム確認に対応。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.0.0</span></h1>
+    <p id="appSubTitle" class="sub">v4.0.0：三麻タブを追加。3人用の実戦精算に対応。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v3.1.4</div>
+  <div id="status" class="status">JS起動OK：v4.0.0</div>
 
 
   <div class="tabs">
     <button class="tab-btn active" id="tabBtn-mt" type="button" onclick="switchAppTab('mt')">Mトナメ</button>
     <button class="tab-btn" id="tabBtn-yonma" type="button" onclick="switchAppTab('yonma')">四麻</button>
     <button class="tab-btn" id="tabBtn-gotou" type="button" onclick="switchAppTab('gotou')">五等</button>
+    <button class="tab-btn" id="tabBtn-sanma" type="button" onclick="switchAppTab('sanma')">三麻</button>
   </div>
   <div id="tab-mt" class="tab-panel active">
   <section class="card"><details open><summary>貼り付け入力</summary><div class="small">前回までの結果を貼り付けると、自動計算欄の「既存合計」に反映される。</div><textarea id="freeInput" placeholder="たい：510 -6230&#10;まさ：+5510 -340&#10;ゆひ：+20550 6100&#10;くり：-26570 470"></textarea><div class="buttons"><button class="secondary" type="button" onclick="applyFreeInputToBase()">既存合計に反映</button><button class="secondary" type="button" onclick="clearFreeInput()">貼付欄クリア</button></div></details></section>
@@ -438,13 +439,29 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
     <section class="card"><details open><summary>五等 履歴</summary><div id="gotouHistory"></div></details></section>
   </div>
 
+
+  <div id="tab-sanma" class="tab-panel">
+    <section class="card real-mode-card" data-mode="sanma">
+      <h2>三麻 精算</h2>
+      <p class="sub">三麻用。3人のスコアを手入力し、チップ込みの最終結果を精算します。</p>
+      <div class="real-settings">
+        <div><div class="small">日付</div><input id="sanmaDate" type="date"></div>
+        <div><div class="small">チップ単価</div><select id="sanmaChipValue" onchange="markRealDirty('sanma')"><option value="100">100円</option><option value="300">300円</option><option value="500">500円</option></select></div>
+      </div>
+      <div id="sanmaSheet"></div><div id="sanmaRowError" class="row-error-message"></div>
+      <div class="buttons"><button class="secondary" type="button" onclick="addRealRows('sanma',10)">半荘を10行追加</button></div>
+      <div id="sanmaTotals"></div><div id="sanmaRanks" class="rank-box">スコアを入力すると着順を抽出する。</div><div class="chart-card"><canvas id="sanmaChart" width="680" height="220"></canvas></div>
+    </section>
+    <section class="card"><details open><summary>三麻 履歴</summary><div id="sanmaHistory"></div></details></section>
+  </div>
+
   <section class="card"><details><summary>メンバー設定</summary><div class="small">コピー表示順</div><select id="sortMode" onchange="calculateOnly()"><option value="score">プラス順</option><option value="member">名前順</option></select><div class="small">選んだ順番でコピー時の並びが変わる。</div><div class="small" style="margin-top:14px;">追加・削除は画面上に反映される。</div><div id="memberList"></div><div style="margin-top:12px;"><input id="newMemberName" placeholder="追加する名前 例：たろう"><div class="buttons"><button class="primary" type="button" onclick="addMember()">追加</button><button class="danger" type="button" onclick="resetMembers()">初期メンバーに戻す</button></div></div></details></section>
 </div>
 <div id="toast" class="toast">コピーしたよ</div>
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'3.1.4',build:'314'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.0.0',build:'400'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -692,7 +709,7 @@ function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'
 function escapeJs(str){return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function setupSmoothDetails(){}
 if(document.getElementById('mtDate')){document.getElementById('mtDate').value=getTodayString()}resetMembers();renderMemberList();renderHistory();calculateOnly();setupSmoothDetails();loadAppConfig();loadMTournamentData();
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=314').catch(function(){})})}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=400').catch(function(){})})}
 
 document.addEventListener('DOMContentLoaded',function(){
   var mtDate=document.getElementById('mtDate');
@@ -709,15 +726,17 @@ document.addEventListener('DOMContentLoaded',function(){
 var REAL_MODE_KEY='mahjong_tool_real_history_v300';
 var REAL_STATE={
   yonma:{players:4, rows:10, multiplier:1000, chipValues:[300,500], defaultNames:['たい','まさ','ゆうひ','くり'], rateMode:'7236'},
-  gotou:{players:3, rows:10, multiplier:10, chipValues:[100,150], defaultNames:['たい','まさ','ゆうひ',''], boost15:false}
+  gotou:{players:3, rows:10, multiplier:10, chipValues:[100,150], defaultNames:['たい','まさ','ゆうひ',''], boost15:false},
+  sanma:{players:3, rows:10, multiplier:1000, chipValues:[100,300,500], defaultNames:['たい','まさ','ゆうひ']}
 };
 function switchAppTab(tab){
-  ['mt','yonma','gotou'].forEach(function(t){
+  ['mt','yonma','gotou','sanma'].forEach(function(t){
     var p=document.getElementById('tab-'+t),b=document.getElementById('tabBtn-'+t);
     if(p)p.classList.toggle('active',t===tab); if(b)b.classList.toggle('active',t===tab);
   });
   if(tab==='yonma')markRealDirty('yonma');
   if(tab==='gotou')markRealDirty('gotou');
+  if(tab==='sanma')markRealDirty('sanma');
   setTimeout(updateFloatingHeader,0);
 }
 function todayISO(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+day}
@@ -731,7 +750,7 @@ function initRealModes(){
   var rateSelect=document.getElementById('yonmaRateMode');
   if(rateSelect)rateSelect.value=REAL_STATE.yonma.rateMode;
   updateGotouBoostButton();
-  ['yonma','gotou'].forEach(function(mode){var d=document.getElementById(mode+'Date'); if(d&&!d.value)d.value=todayISO(); renderRealSheet(mode); renderRealHistory(mode);});
+  ['yonma','gotou','sanma'].forEach(function(mode){var d=document.getElementById(mode+'Date'); if(d&&!d.value)d.value=todayISO(); renderRealSheet(mode); renderRealHistory(mode);});
 }
 
 function getYonmaRateDefinition(){
@@ -815,8 +834,9 @@ function getSheetHeaderRows(mode){
   return html;
 }
 function updateFloatingHeader(){
-  var activeMode=document.getElementById('panel-yonma')&&document.getElementById('panel-yonma').classList.contains('active')?'yonma':
-                 (document.getElementById('panel-gotou')&&document.getElementById('panel-gotou').classList.contains('active')?'gotou':null);
+  var activeMode=document.getElementById('tab-yonma')&&document.getElementById('tab-yonma').classList.contains('active')?'yonma':
+                 (document.getElementById('tab-gotou')&&document.getElementById('tab-gotou').classList.contains('active')?'gotou':
+                 (document.getElementById('tab-sanma')&&document.getElementById('tab-sanma').classList.contains('active')?'sanma':null));
   var floating=document.getElementById('realFloatingHeader');
   if(!floating)return;
   if(!activeMode){floating.classList.remove('visible');return;}
@@ -845,7 +865,7 @@ function bindSheetScroll(mode){
 function getRowEntryStatus(mode,r){
   var st=REAL_STATE[mode], values=[], completed=0, touched=0;
   for(var p=0;p<st.players;p++){
-    if(mode==='gotou'){
+    if(mode==='gotou'||mode==='sanma'){
       var el=document.getElementById(mode+'R'+r+'P'+p+'Plus');
       var raw=el?el.value:'';
       if(raw!==''){touched++;completed++;values.push(Number(raw));}
@@ -918,8 +938,10 @@ function renderRealSheet(mode){
     for(p=0;p<st.players;p++){
       if(mode==='yonma'){
         html+='<td>'+buildYonmaScoreSelect(mode,r,p,'Plus')+'</td><td>'+buildYonmaScoreSelect(mode,r,p,'Minus')+'</td>';
-      }else{
+      }else if(mode==='gotou'){
         html+='<td colspan="2">'+buildGotouScoreSelect(mode,r,p)+'</td>';
+      }else{
+        html+='<td colspan="2"><input id="'+mode+'R'+r+'P'+p+'Plus" inputmode="decimal" placeholder="スコア" oninput="handleRealInput(\''+mode+'\')"></td>';
       }
     }
     html+='<td id="'+mode+'RowSum'+r+'" class="row-sum-cell">—</td></tr>';
@@ -1068,14 +1090,14 @@ function drawRealChart(mode,names,series){
 function clearRealMode(mode){if(!confirm('入力内容をすべてクリアします。元に戻せません。本当にクリアしますか？'))return; renderRealSheet(mode); showToast('入力内容をクリアしたよ');}
 function loadRealHistory(){try{return JSON.parse(localStorage.getItem(REAL_MODE_KEY)||'[]')}catch(e){return []}}
 function saveRealHistoryList(list){try{localStorage.setItem(REAL_MODE_KEY,JSON.stringify(list))}catch(e){alert('履歴保存に失敗しました')}}
-function saveRealHistory(mode){var result=calculateRealMode(mode); if(!result)return; var date=(document.getElementById(mode+'Date')||{}).value||todayISO(); if(!confirm(date+' の'+(mode==='yonma'?'四麻':'五等')+'履歴として保存しますか？'))return; var item={id:mode+'_'+date+'_'+Date.now(),mode:mode,date:date,names:result.names,totals:result.totals,scoreAmounts:result.scoreAmounts,chips:result.chips,chipAmounts:result.chipAmounts,finalAmounts:result.finalAmounts,chipValue:result.chipValue,roundDetails:result.roundDetails,rows:result.rows,scoreFactor:result.scoreFactor,rateMode:result.rateMode,boost15:result.boost15,savedAt:new Date().toISOString()}; var list=loadRealHistory(); list.unshift(item); saveRealHistoryList(list); renderRealHistory(mode); showToast('履歴に保存したよ');}
+function saveRealHistory(mode){var result=calculateRealMode(mode); if(!result)return; var date=(document.getElementById(mode+'Date')||{}).value||todayISO(); if(!confirm(date+' の'+(mode==='yonma'?'四麻':(mode==='gotou'?'五等':'三麻'))+'履歴として保存しますか？'))return; var item={id:mode+'_'+date+'_'+Date.now(),mode:mode,date:date,names:result.names,totals:result.totals,scoreAmounts:result.scoreAmounts,chips:result.chips,chipAmounts:result.chipAmounts,finalAmounts:result.finalAmounts,chipValue:result.chipValue,roundDetails:result.roundDetails,rows:result.rows,scoreFactor:result.scoreFactor,rateMode:result.rateMode,boost15:result.boost15,savedAt:new Date().toISOString()}; var list=loadRealHistory(); list.unshift(item); saveRealHistoryList(list); renderRealHistory(mode); showToast('履歴に保存したよ');}
 function renderRealHistory(mode){
   var box=document.getElementById(mode+'History'); if(!box)return;
   var list=loadRealHistory().filter(function(x){return x.mode===mode});
   if(!list.length){box.innerHTML='<div class="small">まだ履歴はありません。</div>';return;}
   var mult=REAL_STATE[mode].multiplier, html='';
   list.forEach(function(item){
-    html+='<div class="history-item"><div class="history-head"><div class="history-date">'+escapeHtml(item.date)+'</div><div class="history-badge">'+(mode==='yonma'?'四麻':'五等')+'</div></div><div class="history-body">';
+    html+='<div class="history-item"><div class="history-head"><div class="history-date">'+escapeHtml(item.date)+'</div><div class="history-badge">'+(mode==='yonma'?'四麻':(mode==='gotou'?'五等':'三麻'))+'</div></div><div class="history-body">';
     if(mode==='yonma'&&item.rateMode)html+='モード：'+escapeHtml(item.rateMode.replace('-half','ハーフ'))+'\n';
     if(mode==='gotou'&&item.boost15)html+='スコア合計：1.5倍適用\n';
     item.names.forEach(function(n,i){
