@@ -1,5 +1,5 @@
-// v4.7.0: loader.js追跡と通信フロー解析を確実に配信するためキャッシュ世代を更新。
-const CACHE_NAME = 'mahjong-tools-v4.7.0';
+// v4.7.1: loader.js本体と子JSの1階層解析を確実に配信するためキャッシュ世代を更新。
+const CACHE_NAME = 'mahjong-tools-v4.7.1';
 
 const ASSETS_TO_CACHE = [
   './',
