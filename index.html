@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.6.2</title>
+<title>麻雀収支ツール v4.6.3</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -492,10 +492,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.6.2</span></h1>
-    <p id="appSubTitle" class="sub">v4.6.2：診断通信のService Workerフォールバックを修正しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.6.3</span></h1>
+    <p id="appSubTitle" class="sub">v4.6.3：Service Worker停止後の自動再診断に対応しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.6.2</div>
+  <div id="status" class="status">JS起動OK：v4.6.3</div>
 
 
   <div class="tabs">
@@ -629,6 +629,9 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
           <button class="secondary diagnostic-copy" type="button" onclick="copyMajsoulDiagnostic()">診断結果をコピー</button>
         </div>
         <div id="majsoulDiagnosticSummary" class="diagnostic-summary"></div>
+        <div class="buttons">
+          <button class="secondary diagnostic-copy" type="button" onclick="stopServiceWorkerAndRediagnose()">Service Workerを一時停止して再診断</button>
+        </div>
         <div id="majsoulDiagnosticSteps" class="diagnostic-steps"></div>
         <details class="diagnostic-raw">
           <summary>技術情報</summary>
@@ -686,7 +689,9 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.6.2',build:'462'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.6.3',build:'463'};
+var MAJSOUL_SW_RETRY_KEY='majsoul_sw_bypass_retry_v463';
+var MAJSOUL_SW_RETRY_URL_KEY='majsoul_sw_bypass_url_v463';
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -934,7 +939,11 @@ function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'
 function escapeJs(str){return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function setupSmoothDetails(){}
 if(document.getElementById('mtDate')){document.getElementById('mtDate').value=getTodayString()}resetMembers();renderMemberList();renderHistory();calculateOnly();setupSmoothDetails();loadAppConfig();loadMTournamentData();
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js?v=450').catch(function(){})})}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){
+  // v4.6.3: 登録解除後の再診断中だけ再登録を止め、次回通常表示では従来どおりPWAを復帰する。
+  try{if(sessionStorage.getItem(MAJSOUL_SW_RETRY_KEY)==='1')return;}catch(e){}
+  navigator.serviceWorker.register('./service-worker.js?v=463').catch(function(){});
+})}
 
 document.addEventListener('DOMContentLoaded',function(){
   var mtDate=document.getElementById('mtDate');
@@ -943,6 +952,7 @@ document.addEventListener('DOMContentLoaded',function(){
     mtDate.addEventListener('change',renderMTournament);
     if(MTOURNAMENT_DATA_LOADED)renderMTournament();
   }
+  resumeMajsoulDiagnosticWithoutServiceWorker();
 });
 
 
@@ -1063,15 +1073,45 @@ function normalizeGameRecordUrl(url){
   // v4.6.1: 候補の組み立て時に末尾スラッシュを一つに統一し、同じ取得先の誤診断を防ぐ。
   return String(url||'').replace(/\/+$/,'');
 }
-function fetchWithTimeout(url,options,timeoutMs){
+var MAJSOUL_DIAGNOSTIC_FETCH_CONFIG={mode:'cors',credentials:'omit',cache:'no-store',redirect:'follow'};
+function diagnosticFetchWithTimeout(url,timeoutMs){
   var controller=new AbortController();
   var timer=window.setTimeout(function(){controller.abort();},timeoutMs||9000);
-  var opts=Object.assign({},options||{},{signal:controller.signal,cache:'no-store'});
-  // v4.6.2: 同一オリジンの診断だけ識別し、外部通信にはCORS preflightを増やす独自ヘッダーを付けない。
+  // v4.6.3: 診断専用fetchの通信条件を固定し、通常データ取得から独立してログと挙動を検証できるようにする。
+  var opts=Object.assign({},MAJSOUL_DIAGNOSTIC_FETCH_CONFIG,{signal:controller.signal});
   try{
     if(new URL(url,location.href).origin===location.origin){var headers=new Headers(opts.headers||{});headers.set('X-Mahjong-Diagnostic','1');opts.headers=headers;}
   }catch(e){}
   return fetch(url,opts).finally(function(){window.clearTimeout(timer);});
+}
+async function getMajsoulServiceWorkerState(){
+  var supported='serviceWorker' in navigator,controller=!!(supported&&navigator.serviceWorker.controller),registrations=[],cacheKeys=[];
+  try{if(supported&&navigator.serviceWorker.getRegistrations)registrations=await navigator.serviceWorker.getRegistrations();}catch(e){}
+  try{if('caches' in window)cacheKeys=await caches.keys();}catch(e){}
+  return {supported:supported,registrationState:!supported||!registrations.length?'未登録':(controller?'制御中':'登録済'),registrationCount:registrations.length,controller:controller,controllerScriptURL:controller&&navigator.serviceWorker.controller.scriptURL||null,cacheState:cacheKeys.length?cacheKeys.length+'件':'なし',cacheKeys:cacheKeys,fetchMode:MAJSOUL_DIAGNOSTIC_FETCH_CONFIG.mode,fetchCredentials:MAJSOUL_DIAGNOSTIC_FETCH_CONFIG.credentials,fetchCache:MAJSOUL_DIAGNOSTIC_FETCH_CONFIG.cache,fetchRedirect:MAJSOUL_DIAGNOSTIC_FETCH_CONFIG.redirect};
+}
+async function stopServiceWorkerAndRediagnose(){
+  var input=document.getElementById('majsoulPaipuUrl'),url=input?String(input.value||'').trim():'';
+  if(!url){showToast('先に雀魂URLを入力してね');return;}
+  if(!confirm('Service Workerの登録とアプリキャッシュを一時削除して再診断しますか？'))return;
+  try{
+    sessionStorage.setItem(MAJSOUL_SW_RETRY_KEY,'1');sessionStorage.setItem(MAJSOUL_SW_RETRY_URL_KEY,url);
+    if('serviceWorker' in navigator){var registrations=await navigator.serviceWorker.getRegistrations();await Promise.all(registrations.map(function(registration){return registration.unregister();}));}
+    if('caches' in window){var keys=await caches.keys();await Promise.all(keys.map(function(key){return caches.delete(key);}));}
+    location.reload();
+  }catch(e){
+    // v4.6.3: 停止失敗時に再登録抑止フラグだけ残らないよう復旧する。
+    try{sessionStorage.removeItem(MAJSOUL_SW_RETRY_KEY);sessionStorage.removeItem(MAJSOUL_SW_RETRY_URL_KEY);}catch(ignore){}
+    showToast('Service Workerを停止できませんでした');
+  }
+}
+function resumeMajsoulDiagnosticWithoutServiceWorker(){
+  var retry=false,url='';
+  try{retry=sessionStorage.getItem(MAJSOUL_SW_RETRY_KEY)==='1';url=sessionStorage.getItem(MAJSOUL_SW_RETRY_URL_KEY)||'';}catch(e){}
+  if(!retry||!url)return;
+  switchAppTab('majsoul');var input=document.getElementById('majsoulPaipuUrl');if(input)input.value=url;
+  // v4.6.3: reload後はcontrollerが消えた状態で共有URL・UUID・完全IDの既存3候補を自動再試行する。
+  window.setTimeout(function(){Promise.resolve(parseMajsoulUrl()).finally(function(){try{sessionStorage.removeItem(MAJSOUL_SW_RETRY_KEY);sessionStorage.removeItem(MAJSOUL_SW_RETRY_URL_KEY);}catch(e){}});},0);
 }
 function classifyFetchError(error){
   if(error&&error.name==='AbortError')return {code:'TIMEOUT',message:'タイムアウト'};
@@ -1215,25 +1255,30 @@ function renderMajsoulDiagnostic(diagnostic){
   if(raw)raw.textContent=JSON.stringify(diagnostic.raw||{},null,2);
 }
 async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
-  var diagnostic={version:'4.6.2',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{}};
+  var swState=await getMajsoulServiceWorkerState();
+  var diagnostic={version:'4.6.3',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{serviceWorker:swState}};
+  diagnostic.steps.push({status:swState.controller?'warn':'ok',title:'Service Worker状態',detail:swState.registrationState+' ／ controller: '+(swState.controller?'あり':'なし')+(swState.controllerScriptURL?' ／ '+swState.controllerScriptURL:'')});
+  diagnostic.steps.push({status:'ok',title:'Cache状態',detail:swState.cacheState+(swState.cacheKeys.length?' ／ '+swState.cacheKeys.join(', '):'')});
+  diagnostic.steps.push({status:'ok',title:'診断fetch設定',detail:'mode: '+swState.fetchMode+' ／ credentials: '+swState.fetchCredentials+' ／ cache: '+swState.fetchCache+' ／ redirect: '+swState.fetchRedirect});
   var candidates=buildMajsoulFetchCandidates(paipuId,originalUrl),readablePayload=null,directReadable=false,binaryReadable=false;
   var analysis={html:false,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,webSockets:[],https:[],apiCandidates:[]};
   var externalResponseReceived=false;
   for(var i=0;i<candidates.length;i++){
     var candidate=candidates[i],started=Date.now();
     try{
-      var response=await fetchWithTimeout(candidate.url,{mode:'cors',credentials:'omit'},9000);
+      var response=await diagnosticFetchWithTimeout(candidate.url,9000);
       var info=await readDiagnosticResponse(response,candidate.responseType);
       var finalUrl=response.url||candidate.url,redirected=!!response.redirected;
       var requestedOrigin=getMajsoulOrigin(candidate.url),responseOrigin=getMajsoulOrigin(finalUrl),appHtmlMatch=info.kind==='html'&&isCurrentAppHtml(info.payload);
       var serviceWorkerPossible=appHtmlMatch||(requestedOrigin!==location.origin&&responseOrigin===location.origin);
+      var serviceWorkerRoute=requestedOrigin!==location.origin?'外部originのためService Workerスコープ外':(swState.controller?'controller制御下':'controllerなし');
       var genuineExternalResponse=requestedOrigin!==location.origin&&responseOrigin!==location.origin&&!appHtmlMatch;
       if(response.ok&&genuineExternalResponse)externalResponseReceived=true;
       var validRecordFormat=info.format==='JSON'||info.format==='Protobuf候補';
       var reason=!response.ok?'HTTP '+response.status:(serviceWorkerPossible?'Service Workerフォールバック':(info.format==='HTML'?'HTMLページへのフォールバック':(validRecordFormat&&genuineExternalResponse?'外部の牌譜データ候補として取得成功':'牌譜データ形式を確認できません')));
-      var attempt={key:candidate.key,label:candidate.label,requestedUrl:candidate.url,responseUrl:finalUrl,finalUrl:finalUrl,requestedOrigin:requestedOrigin,responseOrigin:responseOrigin,serviceWorkerPossible:serviceWorkerPossible,currentAppHtmlMatch:appHtmlMatch,genuineExternalResponse:genuineExternalResponse,ok:response.ok,status:response.status,statusText:response.statusText,type:response.type,elapsedMs:Date.now()-started,contentType:info.contentType||'不明',contentLength:info.contentLength||info.bytes,contentLengthSource:info.contentLength?'header':'body',actualBytes:info.bytes,redirected:redirected,responseFormat:info.format,first128Bytes:info.preview,reason:reason};
+      var attempt={key:candidate.key,label:candidate.label,requestedUrl:candidate.url,responseUrl:finalUrl,finalUrl:finalUrl,requestedOrigin:requestedOrigin,responseOrigin:responseOrigin,serviceWorkerPossible:serviceWorkerPossible,serviceWorkerRoute:serviceWorkerRoute,controllerAtRequest:swState.controller,currentAppHtmlMatch:appHtmlMatch,genuineExternalResponse:genuineExternalResponse,fetchConfig:MAJSOUL_DIAGNOSTIC_FETCH_CONFIG,ok:response.ok,status:response.status,statusText:response.statusText,type:response.type,elapsedMs:Date.now()-started,contentType:info.contentType||'不明',contentLength:info.contentLength||info.bytes,contentLengthSource:info.contentLength?'header':'body',actualBytes:info.bytes,redirected:redirected,responseFormat:info.format,first128Bytes:info.preview,reason:reason};
       diagnostic.attempts.push(attempt);
-      diagnostic.steps.push({status:!response.ok||serviceWorkerPossible?'ng':(validRecordFormat&&genuineExternalResponse?'ok':'warn'),title:candidate.label+' 通信詳細',detail:'requestedUrl: '+candidate.url+' ／ response.url: '+finalUrl+' ／ requested origin: '+requestedOrigin+' ／ response origin: '+responseOrigin+' ／ Service Worker経由の可能性: '+(serviceWorkerPossible?'あり':'なし')+' ／ 自アプリHTML一致: '+(appHtmlMatch?'はい':'いいえ')+' ／ HTTP: '+response.status+' ／ Content-Type: '+attempt.contentType+' ／ Content-Length: '+attempt.contentLength+(attempt.contentLengthSource==='body'?'（本文実測）':'')+' ／ リダイレクト: '+(redirected?'あり':'なし')+' ／ 形式: '+info.format+' ／ 理由: '+reason+' ／ 先頭128バイト: '+(info.preview||'なし')});
+      diagnostic.steps.push({status:!response.ok||serviceWorkerPossible?'ng':(validRecordFormat&&genuineExternalResponse?'ok':'warn'),title:candidate.label+' 通信詳細',detail:'requestedUrl: '+candidate.url+' ／ response.url: '+finalUrl+' ／ requested origin: '+requestedOrigin+' ／ response origin: '+responseOrigin+' ／ Service Worker経路: '+serviceWorkerRoute+' ／ Service Worker経由の可能性: '+(serviceWorkerPossible?'あり':'なし')+' ／ 自アプリHTML一致: '+(appHtmlMatch?'はい':'いいえ')+' ／ HTTP: '+response.status+' ／ Content-Type: '+attempt.contentType+' ／ Content-Length: '+attempt.contentLength+(attempt.contentLengthSource==='body'?'（本文実測）':'')+' ／ リダイレクト: '+(redirected?'あり':'なし')+' ／ 形式: '+info.format+' ／ 理由: '+reason+' ／ 先頭128バイト: '+(info.preview||'なし')});
       if(!response.ok){if(!candidate.gameRecord)diagnostic.steps.push({status:'ng',title:candidate.label,detail:'HTTP '+response.status+'。データを取得できませんでした'});continue;}
       if(serviceWorkerPossible){if(!candidate.gameRecord)diagnostic.steps.push({status:'ng',title:candidate.label,detail:'Service Workerフォールバックを検出しました。外部取得成功から除外します'});continue;}
       if(info.kind==='json'&&genuineExternalResponse){directReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'ok',title:candidate.label,detail:'外部JSONを直接読み取れました（'+info.bytes+' bytes）'});}
@@ -1242,13 +1287,13 @@ async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
       else if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'通信は成功しましたが、牌譜本体ではないテキストでした'});
     }catch(error){
       var classified=classifyFetchError(error);
-      diagnostic.attempts.push({key:candidate.key,label:candidate.label,requestedUrl:candidate.url,responseUrl:null,finalUrl:null,requestedOrigin:getMajsoulOrigin(candidate.url),responseOrigin:null,serviceWorkerPossible:false,currentAppHtmlMatch:false,genuineExternalResponse:false,ok:false,errorCode:classified.code,error:classified.message,reason:classified.message,elapsedMs:Date.now()-started});
+      diagnostic.attempts.push({key:candidate.key,label:candidate.label,requestedUrl:candidate.url,responseUrl:null,finalUrl:null,requestedOrigin:getMajsoulOrigin(candidate.url),responseOrigin:null,serviceWorkerPossible:false,serviceWorkerRoute:getMajsoulOrigin(candidate.url)!==location.origin?'外部originのためService Workerスコープ外':(swState.controller?'controller制御下':'controllerなし'),controllerAtRequest:swState.controller,currentAppHtmlMatch:false,genuineExternalResponse:false,fetchConfig:MAJSOUL_DIAGNOSTIC_FETCH_CONFIG,ok:false,errorCode:classified.code,error:classified.message,reason:classified.message,elapsedMs:Date.now()-started});
       diagnostic.steps.push({status:'ng',title:candidate.label+' 通信詳細',detail:'requestedUrl: '+candidate.url+' ／ response.url: 取得不可 ／ requested origin: '+getMajsoulOrigin(candidate.url)+' ／ response origin: 取得不可 ／ Service Worker経由の可能性: なし ／ 自アプリHTML一致: いいえ ／ 理由: '+classified.message});
     }
   }
   // v4.6.0: HTMLが参照するJSもCORSで取得可能な範囲だけ解析し、失敗は既存診断の成否に影響させない。
   for(var scriptIndex=0;scriptIndex<analysis.scripts.length&&scriptIndex<12;scriptIndex++){
-    try{var scriptResponse=await fetchWithTimeout(analysis.scripts[scriptIndex],{mode:'cors',credentials:'omit'},7000);if(scriptResponse.ok&&getMajsoulOrigin(scriptResponse.url)!==location.origin)mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(await scriptResponse.text(),analysis.scripts[scriptIndex],false));}catch(e){}
+    try{var scriptResponse=await diagnosticFetchWithTimeout(analysis.scripts[scriptIndex],7000);if(scriptResponse.ok&&getMajsoulOrigin(scriptResponse.url)!==location.origin)mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(await scriptResponse.text(),analysis.scripts[scriptIndex],false));}catch(e){}
   }
   var communication=detectMajsoulCommunication(analysis),fetchCandidates=uniqueMajsoulValues(analysis.fetch.concat(analysis.axios));
   // v4.6.2: REST API判定は雀魂側の外部レスポンスを実際に取得できた場合だけ確定する。

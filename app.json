@@ -1,8 +1,8 @@
 {
   "name": "麻雀収支ツール",
-  "version": "4.6.2",
-  "build": "462",
+  "version": "4.6.3",
+  "build": "463",
   "releaseDate": "2026-07-17",
   "dataVersion": "2.5.5",
-  "description": "雀魂診断通信のService Workerフォールバック除外と外部レスポンス検証に対応"
+  "description": "Service Worker登録・制御・キャッシュ診断と停止後の雀魂3候補自動再診断に対応"
 }

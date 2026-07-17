@@ -1,5 +1,5 @@
-// v4.6.2: 診断通信のフォールバック修正を確実に配信するためキャッシュ世代を更新。
-const CACHE_NAME = 'mahjong-tools-v4.6.2';
+// v4.6.3: Service Worker状態診断と停止後再診断を確実に配信するためキャッシュ世代を更新。
+const CACHE_NAME = 'mahjong-tools-v4.6.3';
 
 const ASSETS_TO_CACHE = [
   './',
