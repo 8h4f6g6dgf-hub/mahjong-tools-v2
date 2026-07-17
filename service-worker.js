@@ -1,4 +1,5 @@
 // v4.8.2: inline Unity config実URL解析を確実に配信するためキャッシュ世代を更新。
+const SERVICE_WORKER_VERSION = '4.8.2';
 const CACHE_NAME = 'mahjong-tools-v4.8.2';
 
 const ASSETS_TO_CACHE = [

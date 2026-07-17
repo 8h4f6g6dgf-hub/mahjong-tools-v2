@@ -487,6 +487,9 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .diagnostic-step .tree-text{white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .diagnostic-raw{margin-top:10px}
 .diagnostic-raw pre{max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-all;padding:10px;border-radius:10px;background:#0f172a;color:#e2e8f0;font-size:11px}
+.build-information{margin-bottom:12px;padding:11px 12px;border:1px solid #d8dee9;border-radius:11px;background:#f8fafc;font-size:12px;line-height:1.6}
+.build-information.warning{background:#fffbeb;border-color:#fcd34d;color:#92400e}
+.build-information dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;margin:8px 0}.build-information dt{font-weight:800}.build-information dd{margin:0;word-break:break-all}
 
 </style>
 </head>
@@ -625,12 +628,14 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
       </div>
 
       <section id="majsoulDiagnosticCard" class="majsoul-diagnostic" style="display:none">
+        <div id="majsoulBuildInformation" class="build-information"></div>
         <div class="diagnostic-title-row">
           <strong>通信・解析診断</strong>
           <button class="secondary diagnostic-copy" type="button" onclick="copyMajsoulDiagnostic()">診断結果をコピー</button>
         </div>
         <div id="majsoulDiagnosticSummary" class="diagnostic-summary"></div>
         <div class="buttons">
+          <button class="secondary diagnostic-copy" type="button" onclick="copyMajsoulBuildInformation()">Build Informationをコピー</button>
           <button class="secondary diagnostic-copy" type="button" onclick="stopServiceWorkerAndRediagnose()">Service Workerを一時停止して再診断</button>
         </div>
         <div id="majsoulDiagnosticSteps" class="diagnostic-steps"></div>
@@ -690,7 +695,8 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.8.2',build:'482',majsoulProvider:{active:'browser',proxyBaseUrl:'',proxyEndpoint:'/api/paipu'}};
+// v4.8.2: 公開物の取り違えを診断できるよう、ビルド固有情報を内蔵設定にも保持する。
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.8.2',build:'482',buildId:'20260718-0507',buildTime:'2026-07-18T05:07:09+09:00',commit:'取得不可',serviceWorkerVersion:'4.8.2',cacheName:'mahjong-tools-v4.8.2',environment:'GitHub Pages',majsoulProvider:{active:'browser',proxyBaseUrl:'',proxyEndpoint:'/api/paipu'}};
 var MAJSOUL_SW_RETRY_KEY='majsoul_sw_bypass_retry_v463';
 var MAJSOUL_SW_RETRY_URL_KEY='majsoul_sw_bypass_url_v463';
 var APP_CONFIG_LOADED=false;
@@ -1370,6 +1376,7 @@ function renderMajsoulDiagnostic(diagnostic){
   MAJSOUL_DIAGNOSTIC=diagnostic;
   var card=document.getElementById('majsoulDiagnosticCard'),summary=document.getElementById('majsoulDiagnosticSummary'),steps=document.getElementById('majsoulDiagnosticSteps'),raw=document.getElementById('majsoulDiagnosticRaw');
   if(card)card.style.display='block';
+  renderMajsoulBuildInformation(diagnostic.build);
   if(summary){summary.className='diagnostic-summary '+(diagnostic.level||'');summary.textContent=diagnostic.summary||'診断結果';}
   if(steps)steps.innerHTML=(diagnostic.steps||[]).map(function(step){
     var mark=step.status==='ok'?'✓':(step.status==='warn'?'!':'×');
@@ -1377,9 +1384,31 @@ function renderMajsoulDiagnostic(diagnostic){
   }).join('');
   if(raw)raw.textContent=JSON.stringify(diagnostic.raw||{},null,2);
 }
+async function collectMajsoulBuildInformation(){
+  var appJson={},serviceWorkerText='',serviceWorkerVersion='取得不可',cacheName='取得不可';
+  try{var appResponse=await fetch('./app.json?build='+Date.now(),{cache:'no-store'});if(appResponse.ok)appJson=await appResponse.json();}catch(e){}
+  try{var swResponse=await fetch('./service-worker.js?build='+Date.now(),{cache:'no-store'});if(swResponse.ok)serviceWorkerText=await swResponse.text();}catch(e){}
+  var versionMatch=serviceWorkerText.match(/SERVICE_WORKER_VERSION\s*=\s*['\"]([^'\"]+)/),cacheMatch=serviceWorkerText.match(/CACHE_NAME\s*=\s*['\"]([^'\"]+)/);
+  if(versionMatch)serviceWorkerVersion=versionMatch[1];if(cacheMatch)cacheName=cacheMatch[1];
+  var build={version:'4.8.2',buildId:APP_CONFIG.buildId||'取得不可',buildTime:APP_CONFIG.buildTime||'取得不可',commit:APP_CONFIG.commit||'取得不可',appConfigVersion:APP_CONFIG.version||'取得不可',appJsonVersion:appJson.version||'取得不可',serviceWorkerVersion:serviceWorkerVersion,cacheName:cacheName,environment:'GitHub Pages'};
+  var expectedCache='mahjong-tools-v'+build.version;
+  build.mismatches=[];if(build.appConfigVersion!==build.version)build.mismatches.push('APP_CONFIG.version');if(build.appJsonVersion!==build.version)build.mismatches.push('app.json.version');if(build.serviceWorkerVersion!==build.version)build.mismatches.push('Service Worker Version');if(build.cacheName!==expectedCache)build.mismatches.push('Cache Name');
+  return build;
+}
+function renderMajsoulBuildInformation(build){
+  var el=document.getElementById('majsoulBuildInformation');if(!el||!build)return;var warning=build.mismatches&&build.mismatches.length;
+  el.className='build-information'+(warning?' warning':'');
+  el.innerHTML='<strong>Build Information</strong>'+(warning?'<div>⚠ バージョン不一致: '+escapeHtml(build.mismatches.join(', '))+'</div>':'')+'<dl>'+[['Version',build.version],['Build ID',build.buildId],['Build Time',build.buildTime],['Git Commit',build.commit],['APP_CONFIG.version',build.appConfigVersion],['app.json.version',build.appJsonVersion],['Service Worker Version',build.serviceWorkerVersion],['Cache Name',build.cacheName],['Build Environment',build.environment]].map(function(item){return '<dt>'+escapeHtml(item[0])+'</dt><dd>'+escapeHtml(item[1]||'取得不可')+'</dd>';}).join('')+'</dl>';
+}
+function copyMajsoulBuildInformation(){
+  var build=MAJSOUL_DIAGNOSTIC&&MAJSOUL_DIAGNOSTIC.build;if(!build){showToast('Build Informationがまだないよ');return;}
+  var text='Version: '+build.version+'\nBuild ID: '+build.buildId+'\nBuild Time: '+build.buildTime+'\nCommit: '+build.commit+'\nService Worker Version: '+build.serviceWorkerVersion+'\nCache Name: '+build.cacheName;
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(function(){showToast('Build Informationをコピーしたよ');});else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();showToast('Build Informationをコピーしたよ');}
+}
 async function runBrowserProviderDiagnostic(paipuId,originalUrl){
   var swState=await getMajsoulServiceWorkerState();
-  var diagnostic={version:'4.8.2',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{serviceWorker:swState}};
+  var buildInformation=await collectMajsoulBuildInformation();
+  var diagnostic={version:'4.8.2',build:buildInformation,testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{build:buildInformation,serviceWorker:swState}};
   diagnostic.steps.push({status:swState.controller?'warn':'ok',title:'Service Worker状態',detail:swState.registrationState+' ／ controller: '+(swState.controller?'あり':'なし')+(swState.controllerScriptURL?' ／ '+swState.controllerScriptURL:'')});
   diagnostic.steps.push({status:'ok',title:'Cache状態',detail:swState.cacheState+(swState.cacheKeys.length?' ／ '+swState.cacheKeys.join(', '):'')});
   diagnostic.steps.push({status:'ok',title:'診断fetch設定',detail:'mode: '+swState.fetchMode+' ／ credentials: '+swState.fetchCredentials+' ／ cache: '+swState.fetchCache+' ／ redirect: '+swState.fetchRedirect});
@@ -1501,9 +1530,10 @@ async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
   var config=getMajsoulProviderConfig(),provider=MAJSOUL_PAIPU_PROVIDERS[config.active]||MAJSOUL_PAIPU_PROVIDERS.browser;
   // v4.8.0: UIから取得実装を分離し、将来はProviderの差し替えだけで中継APIへ移行できるようにする。
   var diagnostic=await provider.diagnose(paipuId,originalUrl,config);
+  if(!diagnostic.build)diagnostic.build=await collectMajsoulBuildInformation();
   ['inlineScriptAnalysis','unityConfig','dataUrl','frameworkUrl','codeUrl','streamingAssetsUrl'].forEach(function(key){if(!Object.prototype.hasOwnProperty.call(diagnostic,key))diagnostic[key]=null;});if(!Array.isArray(diagnostic.unityResourceFetchResults))diagnostic.unityResourceFetchResults=[];
   diagnostic.provider={key:provider.key,name:provider.name,implemented:provider.implemented};
-  diagnostic.raw=diagnostic.raw||{};diagnostic.raw.provider=Object.assign({},diagnostic.raw.provider||{},diagnostic.provider,{config:config});
+  diagnostic.raw=diagnostic.raw||{};diagnostic.raw.build=diagnostic.build;diagnostic.raw.provider=Object.assign({},diagnostic.raw.provider||{},diagnostic.provider,{config:config});
   if(provider.key==='browser')diagnostic.steps.splice(1,0,{status:'ok',title:'現在使用中Provider',detail:'BrowserProvider（ブラウザ直接取得）'});
   renderMajsoulDiagnostic(diagnostic);return diagnostic;
 }
