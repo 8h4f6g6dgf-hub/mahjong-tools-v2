@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.6.0</title>
+<title>麻雀収支ツール v4.6.1</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -492,10 +492,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.6.0</span></h1>
-    <p id="appSubTitle" class="sub">v4.6.0：雀魂URLのHTML・通信方式を解析する診断基盤を追加しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.6.1</span></h1>
+    <p id="appSubTitle" class="sub">v4.6.1：game_record候補のレスポンス詳細診断を追加しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.6.0</div>
+  <div id="status" class="status">JS起動OK：v4.6.1</div>
 
 
   <div class="tabs">
@@ -686,7 +686,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.6.0',build:'460'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.6.1',build:'461'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -1052,10 +1052,16 @@ function extractMajsoulPaipuId(value){
 }
 function buildMajsoulFetchCandidates(paipuId,originalUrl){
   var recordUuid=String(paipuId||'').split('_')[0];
+  var recordBase=normalizeGameRecordUrl('https://mjusgs.mahjongsoul.com:2882/majsoul/game_record/');
   return [
     {key:'share-page',label:'共有ページ',url:originalUrl&&/^https?:\/\//i.test(originalUrl)?originalUrl:'https://game.mahjongsoul.com/?paipu='+encodeURIComponent(paipuId),responseType:'text'},
-    {key:'legacy-record',label:'牌譜レコード候補',url:'https://mjusgs.mahjongsoul.com:2882/majsoul/game_record/'+encodeURIComponent(recordUuid),responseType:'arrayBuffer'}
+    {key:'game-record-uuid',label:'game_record候補（UUID部分）',url:recordBase+'/'+encodeURIComponent(recordUuid),responseType:'arrayBuffer',gameRecord:true},
+    {key:'game-record-full',label:'game_record候補（完全ID）',url:recordBase+'/'+encodeURIComponent(paipuId),responseType:'arrayBuffer',gameRecord:true}
   ];
+}
+function normalizeGameRecordUrl(url){
+  // v4.6.1: 候補の組み立て時に末尾スラッシュを一つに統一し、同じ取得先の誤診断を防ぐ。
+  return String(url||'').replace(/\/+$/,'');
 }
 function fetchWithTimeout(url,options,timeoutMs){
   var controller=new AbortController();
@@ -1071,17 +1077,17 @@ function classifyFetchError(error){
 }
 async function readDiagnosticResponse(response,responseType){
   var contentType=String(response.headers.get('content-type')||'');
-  // v4.6.0: Content-Typeが不正でもHTML本文を牌譜バイナリとして扱わないため、本文側も必ず検査する。
-  if(responseType==='arrayBuffer'){
-    var buffer=await response.arrayBuffer(),bytes=new Uint8Array(buffer),decoded=new TextDecoder().decode(bytes),binaryType=detectMajsoulDataType(contentType,decoded,bytes);
-    if(binaryType==='HTML')return {kind:'html',dataType:'HTML',bytes:bytes.length,contentType:contentType,preview:decoded.slice(0,300),payload:decoded};
-    if(binaryType==='JSON'){try{return {kind:'json',dataType:'JSON',bytes:bytes.length,contentType:contentType,preview:decoded.slice(0,300),payload:JSON.parse(decoded)};}catch(e){}}
-    return {kind:'binary',dataType:binaryType,bytes:bytes.length,contentType:contentType,preview:Array.prototype.slice.call(bytes,0,24).map(function(v){return v.toString(16).padStart(2,'0');}).join(' '),payload:bytes};
-  }
-  var text=await response.text(),parsed=null;
-  var dataType=detectMajsoulDataType(contentType,text);
-  if(dataType==='JSON'){try{parsed=JSON.parse(text);}catch(e){dataType='UNKNOWN';}}
-  return {kind:dataType==='HTML'?'html':(parsed?'json':'text'),dataType:dataType,bytes:new TextEncoder().encode(text).length,contentType:contentType,preview:text.slice(0,300),payload:parsed||text};
+  // v4.6.1: 全形式を同じバイト列から判定し、本文・バイナリの先頭128バイトを診断ログへ残す。
+  var buffer=await response.arrayBuffer(),bytes=new Uint8Array(buffer),text=new TextDecoder().decode(bytes),parsed=null;
+  var format=detectMajsoulResponseFormat(contentType,text,bytes);
+  if(format==='JSON'){try{parsed=JSON.parse(text);}catch(e){format='Text';}}
+  var textual=format==='HTML'||format==='JSON'||format==='Text';
+  var preview128=textual?new TextDecoder().decode(bytes.slice(0,128)):Array.prototype.slice.call(bytes,0,128).map(function(v){return v.toString(16).padStart(2,'0');}).join(' ');
+  return {
+    kind:format==='HTML'?'html':(format==='JSON'?'json':(format==='Protobuf候補'?'binary':'text')),
+    dataType:format==='Protobuf候補'?'PROTOBUF':format.toUpperCase(),format:format,bytes:bytes.length,
+    contentType:contentType,contentLength:response.headers.get('content-length'),preview:preview128,payload:parsed||(textual?text:bytes)
+  };
 }
 function isHtmlResponseBody(text){
   // v4.6.0: 先頭以外に付加情報がある応答も検出できるよう、指定された主要タグを本文全体で判定する。
@@ -1092,6 +1098,19 @@ function detectMajsoulDataType(contentType,text,bytes){
   if(/json/i.test(contentType)||/^\s*[\{\[]/.test(String(text||'')))return 'JSON';
   if(bytes&&bytes.length&&/protobuf|octet-stream/i.test(contentType))return 'PROTOBUF';
   return 'UNKNOWN';
+}
+function detectMajsoulResponseFormat(contentType,text,bytes){
+  // v4.6.1: HTML判定を最優先し、HTMLがProtobuf候補へ流れることを明示的に防止する。
+  if(/(?:text\/html|application\/xhtml\+xml)/i.test(contentType)||isHtmlResponseBody(text))return 'HTML';
+  if(/json/i.test(contentType)||/^\s*[\{\[]/.test(String(text||''))){try{JSON.parse(text);return 'JSON';}catch(e){}}
+  if(/^text\//i.test(contentType)||/javascript|xml|urlencoded/i.test(contentType))return 'Text';
+  if(bytes&&bytes.length&&(/protobuf|octet-stream/i.test(contentType)||hasBinaryMajsoulBytes(bytes)))return 'Protobuf候補';
+  if(bytes&&bytes.length&&String(text||'').trim())return 'Text';
+  return 'Unknown';
+}
+function hasBinaryMajsoulBytes(bytes){
+  var sample=Array.prototype.slice.call(bytes||[],0,128),control=sample.filter(function(value){return value===0||(value<9)||(value>13&&value<32);}).length;
+  return sample.length>0&&control/sample.length>0.1;
 }
 function uniqueMajsoulValues(values){
   return Array.from(new Set((values||[]).filter(Boolean)));
@@ -1184,7 +1203,7 @@ function renderMajsoulDiagnostic(diagnostic){
   if(raw)raw.textContent=JSON.stringify(diagnostic.raw||{},null,2);
 }
 async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
-  var diagnostic={version:'4.6.0',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{}};
+  var diagnostic={version:'4.6.1',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{}};
   var candidates=buildMajsoulFetchCandidates(paipuId,originalUrl),readablePayload=null,directReadable=false,binaryReadable=false;
   var analysis={html:false,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,webSockets:[],https:[],apiCandidates:[]};
   for(var i=0;i<candidates.length;i++){
@@ -1192,15 +1211,22 @@ async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
     try{
       var response=await fetchWithTimeout(candidate.url,{mode:'cors',credentials:'omit'},9000);
       var info=await readDiagnosticResponse(response,candidate.responseType);
-      diagnostic.attempts.push({key:candidate.key,label:candidate.label,url:candidate.url,ok:response.ok,status:response.status,type:response.type,elapsedMs:Date.now()-started,contentType:info.contentType,kind:info.kind,dataType:info.dataType,bytes:info.bytes,preview:info.preview});
-      if(!response.ok){diagnostic.steps.push({status:'ng',title:candidate.label,detail:'HTTP '+response.status+'。データを取得できませんでした'});continue;}
+      var finalUrl=response.url||candidate.url,redirected=!!response.redirected;
+      var validRecordFormat=info.format==='JSON'||info.format==='Protobuf候補';
+      var reason=!response.ok?'HTTP '+response.status:(info.format==='HTML'?'HTMLページへのフォールバック':(validRecordFormat?'牌譜データ候補として取得成功':'牌譜データ形式を確認できません'));
+      var attempt={key:candidate.key,label:candidate.label,requestedUrl:candidate.url,finalUrl:finalUrl,ok:response.ok,status:response.status,statusText:response.statusText,type:response.type,elapsedMs:Date.now()-started,contentType:info.contentType||'不明',contentLength:info.contentLength||info.bytes,contentLengthSource:info.contentLength?'header':'body',actualBytes:info.bytes,redirected:redirected,responseFormat:info.format,first128Bytes:info.preview,reason:reason};
+      diagnostic.attempts.push(attempt);
+      if(candidate.gameRecord){
+        diagnostic.steps.push({status:!response.ok?'ng':(validRecordFormat?'ok':'warn'),title:candidate.label,detail:'最終URL: '+finalUrl+' ／ HTTP: '+response.status+' ／ Content-Type: '+attempt.contentType+' ／ Content-Length: '+attempt.contentLength+(attempt.contentLengthSource==='body'?'（本文実測）':'')+' ／ リダイレクト: '+(redirected?'あり':'なし')+' ／ 形式: '+info.format+' ／ 理由: '+reason+' ／ 先頭128バイト: '+(info.preview||'なし')});
+      }
+      if(!response.ok){if(!candidate.gameRecord)diagnostic.steps.push({status:'ng',title:candidate.label,detail:'HTTP '+response.status+'。データを取得できませんでした'});continue;}
       if(info.kind==='json'){directReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'ok',title:candidate.label,detail:'JSONを直接読み取れました（'+info.bytes+' bytes）'});}
-      else if(info.kind==='binary'&&info.bytes>0){directReadable=true;binaryReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'warn',title:candidate.label,detail:'バイナリを直接取得できました（'+info.bytes+' bytes）。Protobuf変換が必要です'});}
-      else if(info.kind==='html'){mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(info.payload,candidate.url,true));diagnostic.steps.push({status:'warn',title:candidate.label,detail:'HTMLを検出しました。牌譜データから除外して通信情報を解析しました'});}
-      else diagnostic.steps.push({status:'warn',title:candidate.label,detail:'通信は成功しましたが、牌譜本体ではないテキストでした'});
+      else if(info.kind==='binary'&&info.bytes>0){directReadable=true;binaryReadable=true;readablePayload=info.payload;if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'バイナリを直接取得できました（'+info.bytes+' bytes）。Protobuf変換が必要です'});}
+      else if(info.kind==='html'){mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(info.payload,candidate.url,true));if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'HTMLを検出しました。牌譜データから除外して通信情報を解析しました'});}
+      else if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'通信は成功しましたが、牌譜本体ではないテキストでした'});
     }catch(error){
       var classified=classifyFetchError(error);
-      diagnostic.attempts.push({key:candidate.key,label:candidate.label,url:candidate.url,ok:false,errorCode:classified.code,error:classified.message,elapsedMs:Date.now()-started});
+      diagnostic.attempts.push({key:candidate.key,label:candidate.label,requestedUrl:candidate.url,finalUrl:null,ok:false,errorCode:classified.code,error:classified.message,reason:classified.message,elapsedMs:Date.now()-started});
       diagnostic.steps.push({status:'ng',title:candidate.label,detail:classified.message});
     }
   }

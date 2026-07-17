@@ -1,5 +1,5 @@
-// v4.6.0: 更新後の通信解析エンジンを確実に配信するためキャッシュ世代を更新。
-const CACHE_NAME = 'mahjong-tools-v4.6.0';
+// v4.6.1: game_record詳細診断をPWAへ確実に配信するためキャッシュ世代を更新。
+const CACHE_NAME = 'mahjong-tools-v4.6.1';
 
 const ASSETS_TO_CACHE = [
   './',
