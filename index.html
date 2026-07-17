@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.7.2</title>
+<title>麻雀収支ツール v4.8.0</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -493,10 +493,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.7.2</span></h1>
-    <p id="appSubTitle" class="sub">v4.7.2：Unity loader候補の比較取得と関連ファイル解析に対応しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.8.0</span></h1>
+    <p id="appSubTitle" class="sub">v4.8.0：牌譜取得Provider切替基盤を追加しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.7.2</div>
+  <div id="status" class="status">JS起動OK：v4.8.0</div>
 
 
   <div class="tabs">
@@ -690,7 +690,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.7.2',build:'472'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.8.0',build:'480',majsoulProvider:{active:'browser',proxyBaseUrl:'',proxyEndpoint:'/api/paipu'}};
 var MAJSOUL_SW_RETRY_KEY='majsoul_sw_bypass_retry_v463';
 var MAJSOUL_SW_RETRY_URL_KEY='majsoul_sw_bypass_url_v463';
 var APP_CONFIG_LOADED=false;
@@ -943,7 +943,7 @@ if(document.getElementById('mtDate')){document.getElementById('mtDate').value=ge
 if('serviceWorker' in navigator){window.addEventListener('load',function(){
   // v4.6.3: 登録解除後の再診断中だけ再登録を止め、次回通常表示では従来どおりPWAを復帰する。
   try{if(sessionStorage.getItem(MAJSOUL_SW_RETRY_KEY)==='1')return;}catch(e){}
-  navigator.serviceWorker.register('./service-worker.js?v=472').catch(function(){});
+  navigator.serviceWorker.register('./service-worker.js?v=480').catch(function(){});
 })}
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -1329,9 +1329,9 @@ function renderMajsoulDiagnostic(diagnostic){
   }).join('');
   if(raw)raw.textContent=JSON.stringify(diagnostic.raw||{},null,2);
 }
-async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
+async function runBrowserProviderDiagnostic(paipuId,originalUrl){
   var swState=await getMajsoulServiceWorkerState();
-  var diagnostic={version:'4.7.2',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{serviceWorker:swState}};
+  var diagnostic={version:'4.8.0',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{serviceWorker:swState}};
   diagnostic.steps.push({status:swState.controller?'warn':'ok',title:'Service Worker状態',detail:swState.registrationState+' ／ controller: '+(swState.controller?'あり':'なし')+(swState.controllerScriptURL?' ／ '+swState.controllerScriptURL:'')});
   diagnostic.steps.push({status:'ok',title:'Cache状態',detail:swState.cacheState+(swState.cacheKeys.length?' ／ '+swState.cacheKeys.join(', '):'')});
   diagnostic.steps.push({status:'ok',title:'診断fetch設定',detail:'mode: '+swState.fetchMode+' ／ credentials: '+swState.fetchCredentials+' ／ cache: '+swState.fetchCache+' ／ redirect: '+swState.fetchRedirect});
@@ -1407,6 +1407,45 @@ async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
     diagnostic.level='error';
   }
   diagnostic.raw.attempts=diagnostic.attempts;renderMajsoulDiagnostic(diagnostic);return diagnostic;
+}
+var MAJSOUL_PROXY_RESPONSE_SCHEMA={
+  ok:true,
+  provider:'proxy',
+  paipuId:'string',
+  dataType:'JSON | PROTOBUF',
+  contentType:'string',
+  sourceUrl:'string',
+  payload:'object | null',
+  payloadBase64:'string | null',
+  fetchedAt:'ISO-8601 string',
+  error:null
+};
+function getMajsoulProviderConfig(){
+  var configured=APP_CONFIG&&APP_CONFIG.majsoulProvider||{};
+  return {active:String(configured.active||'browser').toLowerCase(),proxyBaseUrl:String(configured.proxyBaseUrl||'').replace(/\/+$/,''),proxyEndpoint:String(configured.proxyEndpoint||'/api/paipu')};
+}
+function buildMajsoulProxyRequestUrl(paipuId,config){
+  var path=(config.proxyEndpoint.charAt(0)==='/'?'': '/')+config.proxyEndpoint;
+  return (config.proxyBaseUrl||'')+path+'?id='+encodeURIComponent(paipuId);
+}
+async function runProxyProviderDiagnostic(paipuId,originalUrl,config){
+  var requestUrl=buildMajsoulProxyRequestUrl(paipuId,config);
+  // v4.8.0: 中継API公開前は通信せず、将来のAPI契約と接続先だけを診断へ提示する。
+  var diagnostic={version:'4.8.0',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,provider:{key:'proxy',name:'ProxyProvider',implemented:false},steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId},{status:'warn',title:'現在使用中Provider',detail:'ProxyProvider（ダミー実装）'},{status:'warn',title:'中継API',detail:'GET '+requestUrl+' ／ 中継APIは未接続です'}],attempts:[],raw:{provider:{key:'proxy',name:'ProxyProvider',implemented:false,request:{method:'GET',url:requestUrl,apiFormat:'GET /api/paipu?id={paipuId}'},expectedResponse:MAJSOUL_PROXY_RESPONSE_SCHEMA,originalUrl:originalUrl}}};
+  diagnostic.summary='ProxyProviderは将来接続用のダミー実装です。app.jsonでBrowserProviderへ戻せます。';diagnostic.level='warning';renderMajsoulDiagnostic(diagnostic);return diagnostic;
+}
+var MAJSOUL_PAIPU_PROVIDERS={
+  browser:{key:'browser',name:'BrowserProvider',implemented:true,diagnose:function(paipuId,originalUrl){return runBrowserProviderDiagnostic(paipuId,originalUrl);}},
+  proxy:{key:'proxy',name:'ProxyProvider',implemented:false,diagnose:function(paipuId,originalUrl,config){return runProxyProviderDiagnostic(paipuId,originalUrl,config);}}
+};
+async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
+  var config=getMajsoulProviderConfig(),provider=MAJSOUL_PAIPU_PROVIDERS[config.active]||MAJSOUL_PAIPU_PROVIDERS.browser;
+  // v4.8.0: UIから取得実装を分離し、将来はProviderの差し替えだけで中継APIへ移行できるようにする。
+  var diagnostic=await provider.diagnose(paipuId,originalUrl,config);
+  diagnostic.provider={key:provider.key,name:provider.name,implemented:provider.implemented};
+  diagnostic.raw=diagnostic.raw||{};diagnostic.raw.provider=Object.assign({},diagnostic.raw.provider||{},diagnostic.provider,{config:config});
+  if(provider.key==='browser')diagnostic.steps.splice(1,0,{status:'ok',title:'現在使用中Provider',detail:'BrowserProvider（ブラウザ直接取得）'});
+  renderMajsoulDiagnostic(diagnostic);return diagnostic;
 }
 function copyMajsoulDiagnostic(){
   if(!MAJSOUL_DIAGNOSTIC){showToast('診断結果がまだないよ');return;}

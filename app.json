@@ -1,8 +1,13 @@
 {
   "name": "麻雀収支ツール",
-  "version": "4.7.2",
-  "build": "472",
+  "version": "4.8.0",
+  "build": "480",
   "releaseDate": "2026-07-17",
   "dataVersion": "2.5.5",
-  "description": "雀魂Unity loader.jsのHTML抽出候補と既知2候補を比較取得し、関連ファイルを診断"
+  "description": "雀魂牌譜取得をBrowserProviderと将来のProxyProviderで切り替えられる基盤を追加",
+  "majsoulProvider": {
+    "active": "browser",
+    "proxyBaseUrl": "",
+    "proxyEndpoint": "/api/paipu"
+  }
 }
