@@ -1208,7 +1208,7 @@ function analyzeMajsoulSource(source,baseUrl,isHtml){
   result.keywords=countMajsoulLoaderKeywords(source);
   var unityMatch,unityPattern=/["'`]([^"'`\s]+(?:\.framework\.js|\.wasm|\.data)(?:\?[^"'`]*)?)["'`]/gi;
   while((unityMatch=unityPattern.exec(source))!==null)result.unityResources.push(resolveMajsoulUrl(unityMatch[1],baseUrl));
-  var streamingMatch,streamingPattern=/streamingAssetsUrl\s*[:=]\s*["'`]([^"'`]+)["'`]/gi;
+  var streamingMatch,streamingPattern=/streamingAssetsUrl\s*[:=][^,;\n}]*?["'`]([^"'`]+)["'`]/gi;
   while((streamingMatch=streamingPattern.exec(source))!==null)result.streamingAssetsUrls.push(resolveMajsoulUrl(streamingMatch[1],baseUrl));
   var urlMatch;
   while((urlMatch=/\b(wss?:\/\/[^\s"'`<>\\]+)/gi.exec(source))!==null){result.webSockets.push(urlMatch[1]);source=source.slice(0,urlMatch.index)+source.slice(urlMatch.index+urlMatch[0].length);}
