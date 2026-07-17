@@ -1,10 +1,10 @@
 {
   "name": "麻雀収支ツール",
-  "version": "4.8.0",
-  "build": "480",
-  "releaseDate": "2026-07-17",
+  "version": "4.8.1",
+  "build": "481",
+  "releaseDate": "2026-07-18",
   "dataVersion": "2.5.5",
-  "description": "雀魂牌譜取得をBrowserProviderと将来のProxyProviderで切り替えられる基盤を追加",
+  "description": "Unity loader.jsからframework/data/wasmを抽出し、framework.jsの通信先解析に対応",
   "majsoulProvider": {
     "active": "browser",
     "proxyBaseUrl": "",

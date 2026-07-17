@@ -1,5 +1,5 @@
-// v4.8.0: 牌譜取得Provider切替基盤を確実に配信するためキャッシュ世代を更新。
-const CACHE_NAME = 'mahjong-tools-v4.8.0';
+// v4.8.1: Unity framework.js通信先解析を確実に配信するためキャッシュ世代を更新。
+const CACHE_NAME = 'mahjong-tools-v4.8.1';
 
 const ASSETS_TO_CACHE = [
   './',
