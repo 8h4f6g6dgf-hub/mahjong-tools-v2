@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.5.0</title>
+<title>麻雀収支ツール v4.6.0</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -492,10 +492,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.5.0</span></h1>
-    <p id="appSubTitle" class="sub">v4.5.0：雀魂牌譜の直接取得診断と、取得後データの解析基盤を追加しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.6.0</span></h1>
+    <p id="appSubTitle" class="sub">v4.6.0：雀魂URLのHTML・通信方式を解析する診断基盤を追加しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.5.0</div>
+  <div id="status" class="status">JS起動OK：v4.6.0</div>
 
 
   <div class="tabs">
@@ -686,7 +686,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.5.0',build:'450'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.6.0',build:'460'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -1071,13 +1071,73 @@ function classifyFetchError(error){
 }
 async function readDiagnosticResponse(response,responseType){
   var contentType=String(response.headers.get('content-type')||'');
+  // v4.6.0: Content-Typeが不正でもHTML本文を牌譜バイナリとして扱わないため、本文側も必ず検査する。
   if(responseType==='arrayBuffer'){
-    var buffer=await response.arrayBuffer(),bytes=new Uint8Array(buffer);
-    return {kind:'binary',bytes:bytes.length,contentType:contentType,preview:Array.prototype.slice.call(bytes,0,24).map(function(v){return v.toString(16).padStart(2,'0');}).join(' '),payload:bytes};
+    var buffer=await response.arrayBuffer(),bytes=new Uint8Array(buffer),decoded=new TextDecoder().decode(bytes),binaryType=detectMajsoulDataType(contentType,decoded,bytes);
+    if(binaryType==='HTML')return {kind:'html',dataType:'HTML',bytes:bytes.length,contentType:contentType,preview:decoded.slice(0,300),payload:decoded};
+    if(binaryType==='JSON'){try{return {kind:'json',dataType:'JSON',bytes:bytes.length,contentType:contentType,preview:decoded.slice(0,300),payload:JSON.parse(decoded)};}catch(e){}}
+    return {kind:'binary',dataType:binaryType,bytes:bytes.length,contentType:contentType,preview:Array.prototype.slice.call(bytes,0,24).map(function(v){return v.toString(16).padStart(2,'0');}).join(' '),payload:bytes};
   }
   var text=await response.text(),parsed=null;
-  if(/json/i.test(contentType)||/^\s*[\{\[]/.test(text)){try{parsed=JSON.parse(text);}catch(e){}}
-  return {kind:parsed?'json':'text',bytes:new TextEncoder().encode(text).length,contentType:contentType,preview:text.slice(0,300),payload:parsed||text};
+  var dataType=detectMajsoulDataType(contentType,text);
+  if(dataType==='JSON'){try{parsed=JSON.parse(text);}catch(e){dataType='UNKNOWN';}}
+  return {kind:dataType==='HTML'?'html':(parsed?'json':'text'),dataType:dataType,bytes:new TextEncoder().encode(text).length,contentType:contentType,preview:text.slice(0,300),payload:parsed||text};
+}
+function isHtmlResponseBody(text){
+  // v4.6.0: 先頭以外に付加情報がある応答も検出できるよう、指定された主要タグを本文全体で判定する。
+  return /<!doctype\b|<html\b|<head\b|<body\b/i.test(String(text||''));
+}
+function detectMajsoulDataType(contentType,text,bytes){
+  if(/(?:text\/html|application\/xhtml\+xml)/i.test(contentType)||isHtmlResponseBody(text))return 'HTML';
+  if(/json/i.test(contentType)||/^\s*[\{\[]/.test(String(text||'')))return 'JSON';
+  if(bytes&&bytes.length&&/protobuf|octet-stream/i.test(contentType))return 'PROTOBUF';
+  return 'UNKNOWN';
+}
+function uniqueMajsoulValues(values){
+  return Array.from(new Set((values||[]).filter(Boolean)));
+}
+function resolveMajsoulUrl(value,baseUrl){
+  try{return new URL(String(value||'').replace(/^["']|["']$/g,''),baseUrl).href;}catch(e){return String(value||'');}
+}
+function extractQuotedCallUrls(source,callPattern,baseUrl){
+  var values=[],match;
+  while((match=callPattern.exec(source))!==null)values.push(resolveMajsoulUrl(match[1],baseUrl));
+  return values;
+}
+function analyzeMajsoulSource(source,baseUrl,isHtml){
+  source=String(source||'');
+  var result={html:!!isHtml,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,webSockets:[],https:[],apiCandidates:[]};
+  if(isHtml){
+    var doc=new DOMParser().parseFromString(source,'text/html');
+    Array.prototype.forEach.call(doc.querySelectorAll('script'),function(script){
+      if(script.src)result.scripts.push(resolveMajsoulUrl(script.getAttribute('src'),baseUrl));
+      else if(script.textContent.trim())result.inlineScripts++;
+    });
+  }
+  // v4.6.0: 通信ライブラリを実行せず静的抽出し、既存の取得処理へ副作用を与えない。
+  result.fetch=extractQuotedCallUrls(source,/\bfetch\s*\(\s*["'`]([^"'`]+)["'`]/gi,baseUrl);
+  result.axios=extractQuotedCallUrls(source,/\baxios(?:\.(?:get|post|put|patch|delete))?\s*\(\s*["'`]([^"'`]+)["'`]/gi,baseUrl);
+  result.xmlHttpRequest=/\bXMLHttpRequest\b/i.test(source);
+  var urlMatch;
+  while((urlMatch=/\b(wss?:\/\/[^\s"'`<>\\]+)/gi.exec(source))!==null){result.webSockets.push(urlMatch[1]);source=source.slice(0,urlMatch.index)+source.slice(urlMatch.index+urlMatch[0].length);}
+  var httpsPattern=/\bhttps:\/\/[^\s"'`<>\\)]+/gi;
+  while((urlMatch=httpsPattern.exec(source))!==null)result.https.push(urlMatch[0]);
+  var allUrls=result.scripts.concat(result.fetch,result.axios,result.webSockets,result.https);
+  result.apiCandidates=allUrls.filter(function(url){return /(?:api|record|game_record|liqi|protobuf|(?:^|[\/_-])res(?:[\/_-]|$)|gateway)/i.test(url);});
+  result.scripts=uniqueMajsoulValues(result.scripts);result.fetch=uniqueMajsoulValues(result.fetch);result.axios=uniqueMajsoulValues(result.axios);
+  result.webSockets=uniqueMajsoulValues(result.webSockets);result.https=uniqueMajsoulValues(result.https);result.apiCandidates=uniqueMajsoulValues(result.apiCandidates);
+  return result;
+}
+function mergeMajsoulAnalysis(target,source){
+  ['scripts','fetch','axios','webSockets','https','apiCandidates'].forEach(function(key){target[key]=uniqueMajsoulValues((target[key]||[]).concat(source[key]||[]));});
+  target.html=target.html||source.html;target.inlineScripts=(target.inlineScripts||0)+(source.inlineScripts||0);target.xmlHttpRequest=target.xmlHttpRequest||source.xmlHttpRequest;
+  return target;
+}
+function detectMajsoulCommunication(analysis){
+  if(analysis.webSockets.length)return 'WebSocket';
+  if(analysis.fetch.length||analysis.axios.length||analysis.xmlHttpRequest||analysis.apiCandidates.length)return 'REST API';
+  if(analysis.html)return 'HTMLのみ';
+  return '不明';
 }
 function extractGenericPlayers(payload){
   var candidates=[payload&&payload.players,payload&&payload.accounts,payload&&payload.data&&payload.data.players,payload&&payload.head&&payload.head.accounts];
@@ -1124,24 +1184,38 @@ function renderMajsoulDiagnostic(diagnostic){
   if(raw)raw.textContent=JSON.stringify(diagnostic.raw||{},null,2);
 }
 async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
-  var diagnostic={version:'4.5.0',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{}};
+  var diagnostic={version:'4.6.0',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{}};
   var candidates=buildMajsoulFetchCandidates(paipuId,originalUrl),readablePayload=null,directReadable=false,binaryReadable=false;
+  var analysis={html:false,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,webSockets:[],https:[],apiCandidates:[]};
   for(var i=0;i<candidates.length;i++){
     var candidate=candidates[i],started=Date.now();
     try{
       var response=await fetchWithTimeout(candidate.url,{mode:'cors',credentials:'omit'},9000);
       var info=await readDiagnosticResponse(response,candidate.responseType);
-      diagnostic.attempts.push({key:candidate.key,label:candidate.label,url:candidate.url,ok:response.ok,status:response.status,type:response.type,elapsedMs:Date.now()-started,contentType:info.contentType,kind:info.kind,bytes:info.bytes,preview:info.preview});
+      diagnostic.attempts.push({key:candidate.key,label:candidate.label,url:candidate.url,ok:response.ok,status:response.status,type:response.type,elapsedMs:Date.now()-started,contentType:info.contentType,kind:info.kind,dataType:info.dataType,bytes:info.bytes,preview:info.preview});
       if(!response.ok){diagnostic.steps.push({status:'ng',title:candidate.label,detail:'HTTP '+response.status+'。データを取得できませんでした'});continue;}
       if(info.kind==='json'){directReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'ok',title:candidate.label,detail:'JSONを直接読み取れました（'+info.bytes+' bytes）'});}
       else if(info.kind==='binary'&&info.bytes>0){directReadable=true;binaryReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'warn',title:candidate.label,detail:'バイナリを直接取得できました（'+info.bytes+' bytes）。Protobuf変換が必要です'});}
-      else diagnostic.steps.push({status:'warn',title:candidate.label,detail:'通信は成功しましたが、牌譜本体ではなくHTML／テキストでした'});
+      else if(info.kind==='html'){mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(info.payload,candidate.url,true));diagnostic.steps.push({status:'warn',title:candidate.label,detail:'HTMLを検出しました。牌譜データから除外して通信情報を解析しました'});}
+      else diagnostic.steps.push({status:'warn',title:candidate.label,detail:'通信は成功しましたが、牌譜本体ではないテキストでした'});
     }catch(error){
       var classified=classifyFetchError(error);
       diagnostic.attempts.push({key:candidate.key,label:candidate.label,url:candidate.url,ok:false,errorCode:classified.code,error:classified.message,elapsedMs:Date.now()-started});
       diagnostic.steps.push({status:'ng',title:candidate.label,detail:classified.message});
     }
   }
+  // v4.6.0: HTMLが参照するJSもCORSで取得可能な範囲だけ解析し、失敗は既存診断の成否に影響させない。
+  for(var scriptIndex=0;scriptIndex<analysis.scripts.length&&scriptIndex<12;scriptIndex++){
+    try{var scriptResponse=await fetchWithTimeout(analysis.scripts[scriptIndex],{mode:'cors',credentials:'omit'},7000);if(scriptResponse.ok)mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(await scriptResponse.text(),analysis.scripts[scriptIndex],false));}catch(e){}
+  }
+  var communication=detectMajsoulCommunication(analysis),fetchCandidates=uniqueMajsoulValues(analysis.fetch.concat(analysis.axios));
+  diagnostic.steps.push({status:analysis.html?'ok':'warn',title:'HTML',detail:analysis.html?'検出・解析済み':'検出なし'});
+  diagnostic.steps.push({status:analysis.scripts.length?'ok':'warn',title:'Scripts',detail:analysis.scripts.length+'件（inline '+analysis.inlineScripts+'件）'});
+  diagnostic.steps.push({status:fetchCandidates.length||analysis.xmlHttpRequest?'ok':'warn',title:'Fetch',detail:fetchCandidates.length+'件'+(analysis.xmlHttpRequest?'／XMLHttpRequestあり':'')});
+  diagnostic.steps.push({status:analysis.apiCandidates.length?'ok':'warn',title:'API候補',detail:analysis.apiCandidates.length?analysis.apiCandidates.join(' / '):'候補なし'});
+  diagnostic.steps.push({status:analysis.webSockets.length?'ok':'warn',title:'WebSocket候補',detail:analysis.webSockets.length?analysis.webSockets.join(' / '):'候補なし'});
+  diagnostic.steps.push({status:communication==='不明'?'warn':'ok',title:'通信方式',detail:communication});
+  diagnostic.raw.htmlAnalysis={html:analysis.html,scripts:analysis.scripts,inlineScripts:analysis.inlineScripts,fetch:fetchCandidates,apiCandidates:analysis.apiCandidates,webSocketCandidates:analysis.webSockets,communication:communication};
   if(readablePayload&&!binaryReadable){
     try{
       var internal=convertFetchedPayloadToInternalJson(readablePayload,paipuId);

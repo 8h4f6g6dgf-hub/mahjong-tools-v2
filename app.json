@@ -1,8 +1,8 @@
 {
   "name": "麻雀収支ツール",
-  "version": "4.5.0",
-  "build": "450",
-  "releaseDate": "2026-07-16",
+  "version": "4.6.0",
+  "build": "460",
+  "releaseDate": "2026-07-17",
   "dataVersion": "2.5.5",
-  "description": "雀魂牌譜の直接取得診断、CORS判定、取得後解析基盤に対応"
+  "description": "雀魂URLのHTML・JS解析、API・WebSocket候補抽出、通信方式診断に対応"
 }
