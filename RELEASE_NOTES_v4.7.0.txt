@@ -1,0 +1,17 @@
+麻雀収支ツール v4.7.0 リリースノート
+リリース日: 2026-07-17
+
+変更内容
+- 雀魂共有ページからloader.jsを検出し、優先的に取得・解析する処理を追加しました。
+- loader.jsおよび子JavaScriptからfetch、XMLHttpRequest、WebSocket、protobuf、game_record、gateway、liqi、apiを抽出します。
+- importScripts、動的import、ES Modules、require、script.srcで参照される子JavaScriptを追跡します。
+- HTML → loader.js／script → 子script → 通信先のツリーを診断画面へ追加しました。
+- 抽出元から通信先までの通信フローを診断画面へ追加しました。
+- loader.js取得結果、キーワード件数、子JavaScript、通信先ツリー、通信フローをコピーJSONへ追加しました。
+- 追跡負荷を抑えるため、JavaScript追跡は最大深さ3、最大24ファイルに制限しています。
+- アプリ、manifest、Service Worker、PWAキャッシュをv4.7.0へ更新しました。
+
+互換性
+- GitHub PagesおよびPWA構成を維持しています。
+- 既存のMトーナメント、四麻、五等、三麻、雀魂、JSON読込、履歴、グラフ、チップ、精算機能は変更していません。
+- アイコンとmtournament.jsonは変更していません。

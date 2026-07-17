@@ -1,8 +1,8 @@
 {
   "name": "麻雀収支ツール",
-  "version": "4.6.3",
-  "build": "463",
+  "version": "4.7.0",
+  "build": "470",
   "releaseDate": "2026-07-17",
   "dataVersion": "2.5.5",
-  "description": "Service Worker登録・制御・キャッシュ診断と停止後の雀魂3候補自動再診断に対応"
+  "description": "雀魂共有ページのloader.jsと子JSを追跡し、通信先ツリーと通信フローを解析"
 }

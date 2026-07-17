@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.6.3</title>
+<title>麻雀収支ツール v4.7.0</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -484,6 +484,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 .diagnostic-step .mark{font-weight:900;text-align:center}
 .diagnostic-step.ok .mark{color:#15803d}.diagnostic-step.warn .mark{color:#b45309}.diagnostic-step.ng .mark{color:#be123c}
 .diagnostic-step strong{display:block;font-size:13px}
+.diagnostic-step .tree-text{white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .diagnostic-raw{margin-top:10px}
 .diagnostic-raw pre{max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-all;padding:10px;border-radius:10px;background:#0f172a;color:#e2e8f0;font-size:11px}
 
@@ -492,10 +493,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.6.3</span></h1>
-    <p id="appSubTitle" class="sub">v4.6.3：Service Worker停止後の自動再診断に対応しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.7.0</span></h1>
+    <p id="appSubTitle" class="sub">v4.7.0：loader.js追跡と通信フロー解析に対応しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.6.3</div>
+  <div id="status" class="status">JS起動OK：v4.7.0</div>
 
 
   <div class="tabs">
@@ -689,7 +690,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.6.3',build:'463'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.7.0',build:'470'};
 var MAJSOUL_SW_RETRY_KEY='majsoul_sw_bypass_retry_v463';
 var MAJSOUL_SW_RETRY_URL_KEY='majsoul_sw_bypass_url_v463';
 var APP_CONFIG_LOADED=false;
@@ -942,7 +943,7 @@ if(document.getElementById('mtDate')){document.getElementById('mtDate').value=ge
 if('serviceWorker' in navigator){window.addEventListener('load',function(){
   // v4.6.3: 登録解除後の再診断中だけ再登録を止め、次回通常表示では従来どおりPWAを復帰する。
   try{if(sessionStorage.getItem(MAJSOUL_SW_RETRY_KEY)==='1')return;}catch(e){}
-  navigator.serviceWorker.register('./service-worker.js?v=463').catch(function(){});
+  navigator.serviceWorker.register('./service-worker.js?v=470').catch(function(){});
 })}
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -1177,32 +1178,83 @@ function extractQuotedCallUrls(source,callPattern,baseUrl){
 }
 function analyzeMajsoulSource(source,baseUrl,isHtml){
   source=String(source||'');
-  var result={html:!!isHtml,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,webSockets:[],https:[],apiCandidates:[]};
+  var result={html:!!isHtml,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,xmlHttpRequestUrls:[],webSockets:[],https:[],apiCandidates:[],keywords:{}};
   if(isHtml){
     var doc=new DOMParser().parseFromString(source,'text/html');
     Array.prototype.forEach.call(doc.querySelectorAll('script'),function(script){
       if(script.src)result.scripts.push(resolveMajsoulUrl(script.getAttribute('src'),baseUrl));
       else if(script.textContent.trim())result.inlineScripts++;
     });
+    result.scripts=result.scripts.concat(extractMajsoulChildScripts(source,baseUrl));
   }
   // v4.6.0: 通信ライブラリを実行せず静的抽出し、既存の取得処理へ副作用を与えない。
   result.fetch=extractQuotedCallUrls(source,/\bfetch\s*\(\s*["'`]([^"'`]+)["'`]/gi,baseUrl);
   result.axios=extractQuotedCallUrls(source,/\baxios(?:\.(?:get|post|put|patch|delete))?\s*\(\s*["'`]([^"'`]+)["'`]/gi,baseUrl);
   result.xmlHttpRequest=/\bXMLHttpRequest\b/i.test(source);
+  result.xmlHttpRequestUrls=extractQuotedCallUrls(source,/\.open\s*\(\s*["'`][A-Z]+["'`]\s*,\s*["'`]([^"'`]+)["'`]/gi,baseUrl);
+  ['fetch','XMLHttpRequest','WebSocket','protobuf','game_record','gateway','liqi','api'].forEach(function(keyword){var matches=source.match(new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'));result.keywords[keyword]=matches?matches.length:0;});
   var urlMatch;
   while((urlMatch=/\b(wss?:\/\/[^\s"'`<>\\]+)/gi.exec(source))!==null){result.webSockets.push(urlMatch[1]);source=source.slice(0,urlMatch.index)+source.slice(urlMatch.index+urlMatch[0].length);}
   var httpsPattern=/\bhttps:\/\/[^\s"'`<>\\)]+/gi;
   while((urlMatch=httpsPattern.exec(source))!==null)result.https.push(urlMatch[0]);
-  var allUrls=result.scripts.concat(result.fetch,result.axios,result.webSockets,result.https);
+  var allUrls=result.scripts.concat(result.fetch,result.axios,result.xmlHttpRequestUrls,result.webSockets,result.https);
   result.apiCandidates=allUrls.filter(function(url){return /(?:api|record|game_record|liqi|protobuf|(?:^|[\/_-])res(?:[\/_-]|$)|gateway)/i.test(url);});
   result.scripts=uniqueMajsoulValues(result.scripts);result.fetch=uniqueMajsoulValues(result.fetch);result.axios=uniqueMajsoulValues(result.axios);
-  result.webSockets=uniqueMajsoulValues(result.webSockets);result.https=uniqueMajsoulValues(result.https);result.apiCandidates=uniqueMajsoulValues(result.apiCandidates);
+  result.xmlHttpRequestUrls=uniqueMajsoulValues(result.xmlHttpRequestUrls);result.webSockets=uniqueMajsoulValues(result.webSockets);result.https=uniqueMajsoulValues(result.https);result.apiCandidates=uniqueMajsoulValues(result.apiCandidates);
   return result;
 }
 function mergeMajsoulAnalysis(target,source){
-  ['scripts','fetch','axios','webSockets','https','apiCandidates'].forEach(function(key){target[key]=uniqueMajsoulValues((target[key]||[]).concat(source[key]||[]));});
+  ['scripts','fetch','axios','xmlHttpRequestUrls','webSockets','https','apiCandidates'].forEach(function(key){target[key]=uniqueMajsoulValues((target[key]||[]).concat(source[key]||[]));});
   target.html=target.html||source.html;target.inlineScripts=(target.inlineScripts||0)+(source.inlineScripts||0);target.xmlHttpRequest=target.xmlHttpRequest||source.xmlHttpRequest;
+  target.keywords=target.keywords||{};Object.keys(source.keywords||{}).forEach(function(key){target.keywords[key]=(target.keywords[key]||0)+source.keywords[key];});
   return target;
+}
+function extractMajsoulChildScripts(source,baseUrl){
+  source=String(source||'');var values=[];
+  [
+    /\bimportScripts\s*\(\s*["'`]([^"'`]+\.js(?:\?[^"'`]*)?)["'`]/gi,
+    /\bimport\s*\(\s*["'`]([^"'`]+\.js(?:\?[^"'`]*)?)["'`]\s*\)/gi,
+    /\bfrom\s*["'`]([^"'`]+\.js(?:\?[^"'`]*)?)["'`]/gi,
+    /\brequire\s*\(\s*["'`]([^"'`]+\.js(?:\?[^"'`]*)?)["'`]\s*\)/gi,
+    /\.src\s*=\s*["'`]([^"'`]+\.js(?:\?[^"'`]*)?)["'`]/gi,
+    /["'`]([^"'`\s]+\.js(?:\?[^"'`]*)?)["'`]/gi
+  ].forEach(function(pattern){values=values.concat(extractQuotedCallUrls(source,pattern,baseUrl));});
+  return uniqueMajsoulValues(values);
+}
+function buildMajsoulCommunicationTargets(sourceAnalysis){
+  var targets=[];
+  (sourceAnalysis.fetch||[]).forEach(function(url){targets.push({type:'fetch',value:url});});
+  (sourceAnalysis.axios||[]).forEach(function(url){targets.push({type:'api',value:url});});
+  (sourceAnalysis.xmlHttpRequestUrls||[]).forEach(function(url){targets.push({type:'XMLHttpRequest',value:url});});
+  (sourceAnalysis.webSockets||[]).forEach(function(url){targets.push({type:'WebSocket',value:url});});
+  (sourceAnalysis.apiCandidates||[]).forEach(function(url){targets.push({type:'API候補',value:url});});
+  ['fetch','XMLHttpRequest','WebSocket','protobuf','game_record','gateway','liqi','api'].forEach(function(keyword){if(sourceAnalysis.keywords&&sourceAnalysis.keywords[keyword])targets.push({type:'keyword',value:keyword+' ('+sourceAnalysis.keywords[keyword]+')'});});
+  var seen={};return targets.filter(function(target){var key=target.type+'|'+target.value;if(seen[key])return false;seen[key]=true;return true;});
+}
+async function traceMajsoulScriptTree(initialScripts,htmlUrl,analysis){
+  // v4.7.0: loader.jsを優先し、そこから静的に参照されるJSを深さ3・最大24件まで安全に追跡する。
+  var scripts=uniqueMajsoulValues(initialScripts||[]).sort(function(a,b){return (/loader\.js(?:\?|$)/i.test(a)?-1:0)-(/loader\.js(?:\?|$)/i.test(b)?-1:0);});
+  var root=htmlUrl||'HTML';
+  var queue=scripts.map(function(url){return {url:url,parent:root,depth:1,path:[root,url]};}),seen={},nodes=[],flows=[],loaderResults=[];
+  while(queue.length&&nodes.length<24){
+    var item=queue.shift();if(seen[item.url]||item.depth>3)continue;seen[item.url]=true;
+    var node={type:/loader\.js(?:\?|$)/i.test(item.url)?'loader.js':'script',url:item.url,parent:item.parent,path:item.path,depth:item.depth,status:'取得中',children:[],communications:[]};nodes.push(node);
+    try{
+      var response=await diagnosticFetchWithTimeout(item.url,7000);node.status=response.ok?'取得成功':'HTTP '+response.status;node.responseUrl=response.url||item.url;
+      if(!response.ok)continue;
+      var source=await response.text(),sourceAnalysis=analyzeMajsoulSource(source,node.responseUrl,false);
+      mergeMajsoulAnalysis(analysis,sourceAnalysis);node.communications=buildMajsoulCommunicationTargets(sourceAnalysis);node.children=extractMajsoulChildScripts(source,node.responseUrl);
+      if(node.type==='loader.js')loaderResults.push({url:item.url,responseUrl:node.responseUrl,status:node.status,bytes:new TextEncoder().encode(source).length,keywords:sourceAnalysis.keywords,children:node.children,communications:node.communications});
+      node.communications.forEach(function(target){flows.push(item.path.join(' → ')+' → '+target.type+' → '+target.value);});
+      node.children.forEach(function(child){if(!seen[child])queue.push({url:child,parent:item.url,path:item.path.concat(child),depth:item.depth+1});});
+    }catch(error){var classified=classifyFetchError(error);node.status=classified.message;node.errorCode=classified.code;}
+  }
+  return {root:root,nodes:nodes,flows:uniqueMajsoulValues(flows),loader:loaderResults,limits:{maxDepth:3,maxScripts:24}};
+}
+function formatMajsoulCommunicationTree(tree){
+  var lines=['HTML: '+tree.root];
+  tree.nodes.forEach(function(node){var indent=new Array(node.depth+1).join('  ');lines.push(indent+'↓ '+node.type+': '+node.url+' ['+node.status+']');node.communications.forEach(function(target){lines.push(indent+'  ↓ '+target.type+': '+target.value);});});
+  return lines.join('\n');
 }
 function detectMajsoulCommunication(analysis){
   if(analysis.webSockets.length)return 'WebSocket';
@@ -1250,18 +1302,19 @@ function renderMajsoulDiagnostic(diagnostic){
   if(summary){summary.className='diagnostic-summary '+(diagnostic.level||'');summary.textContent=diagnostic.summary||'診断結果';}
   if(steps)steps.innerHTML=(diagnostic.steps||[]).map(function(step){
     var mark=step.status==='ok'?'✓':(step.status==='warn'?'!':'×');
-    return '<div class="diagnostic-step '+escapeHtml(step.status||'')+'"><div class="mark">'+mark+'</div><div><strong>'+escapeHtml(step.title||'')+'</strong><div>'+escapeHtml(step.detail||'')+'</div></div></div>';
+    return '<div class="diagnostic-step '+escapeHtml(step.status||'')+'"><div class="mark">'+mark+'</div><div><strong>'+escapeHtml(step.title||'')+'</strong><div class="'+(step.tree?'tree-text':'')+'">'+escapeHtml(step.detail||'')+'</div></div></div>';
   }).join('');
   if(raw)raw.textContent=JSON.stringify(diagnostic.raw||{},null,2);
 }
 async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
   var swState=await getMajsoulServiceWorkerState();
-  var diagnostic={version:'4.6.3',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{serviceWorker:swState}};
+  var diagnostic={version:'4.7.0',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{serviceWorker:swState}};
   diagnostic.steps.push({status:swState.controller?'warn':'ok',title:'Service Worker状態',detail:swState.registrationState+' ／ controller: '+(swState.controller?'あり':'なし')+(swState.controllerScriptURL?' ／ '+swState.controllerScriptURL:'')});
   diagnostic.steps.push({status:'ok',title:'Cache状態',detail:swState.cacheState+(swState.cacheKeys.length?' ／ '+swState.cacheKeys.join(', '):'')});
   diagnostic.steps.push({status:'ok',title:'診断fetch設定',detail:'mode: '+swState.fetchMode+' ／ credentials: '+swState.fetchCredentials+' ／ cache: '+swState.fetchCache+' ／ redirect: '+swState.fetchRedirect});
   var candidates=buildMajsoulFetchCandidates(paipuId,originalUrl),readablePayload=null,directReadable=false,binaryReadable=false;
-  var analysis={html:false,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,webSockets:[],https:[],apiCandidates:[]};
+  var analysis={html:false,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,xmlHttpRequestUrls:[],webSockets:[],https:[],apiCandidates:[],keywords:{}};
+  var htmlSourceUrl='';
   var externalResponseReceived=false;
   for(var i=0;i<candidates.length;i++){
     var candidate=candidates[i],started=Date.now();
@@ -1283,7 +1336,7 @@ async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
       if(serviceWorkerPossible){if(!candidate.gameRecord)diagnostic.steps.push({status:'ng',title:candidate.label,detail:'Service Workerフォールバックを検出しました。外部取得成功から除外します'});continue;}
       if(info.kind==='json'&&genuineExternalResponse){directReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'ok',title:candidate.label,detail:'外部JSONを直接読み取れました（'+info.bytes+' bytes）'});}
       else if(info.kind==='binary'&&info.bytes>0&&genuineExternalResponse){directReadable=true;binaryReadable=true;readablePayload=info.payload;if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'外部バイナリを直接取得できました（'+info.bytes+' bytes）。Protobuf変換が必要です'});}
-      else if(info.kind==='html'&&genuineExternalResponse){mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(info.payload,candidate.url,true));if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'外部HTMLを検出しました。牌譜データから除外して通信情報を解析しました'});}
+      else if(info.kind==='html'&&genuineExternalResponse){if(!htmlSourceUrl)htmlSourceUrl=finalUrl;mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(info.payload,candidate.url,true));if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'外部HTMLを検出しました。牌譜データから除外して通信情報を解析しました'});}
       else if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'通信は成功しましたが、牌譜本体ではないテキストでした'});
     }catch(error){
       var classified=classifyFetchError(error);
@@ -1291,10 +1344,12 @@ async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
       diagnostic.steps.push({status:'ng',title:candidate.label+' 通信詳細',detail:'requestedUrl: '+candidate.url+' ／ response.url: 取得不可 ／ requested origin: '+getMajsoulOrigin(candidate.url)+' ／ response origin: 取得不可 ／ Service Worker経由の可能性: なし ／ 自アプリHTML一致: いいえ ／ 理由: '+classified.message});
     }
   }
-  // v4.6.0: HTMLが参照するJSもCORSで取得可能な範囲だけ解析し、失敗は既存診断の成否に影響させない。
-  for(var scriptIndex=0;scriptIndex<analysis.scripts.length&&scriptIndex<12;scriptIndex++){
-    try{var scriptResponse=await diagnosticFetchWithTimeout(analysis.scripts[scriptIndex],7000);if(scriptResponse.ok&&getMajsoulOrigin(scriptResponse.url)!==location.origin)mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(await scriptResponse.text(),analysis.scripts[scriptIndex],false));}catch(e){}
-  }
+  var communicationTree=await traceMajsoulScriptTree(analysis.scripts,htmlSourceUrl||originalUrl,analysis);
+  var treeText=formatMajsoulCommunicationTree(communicationTree),flowText=communicationTree.flows.length?communicationTree.flows.join('\n'):'通信先を抽出できませんでした';
+  diagnostic.steps.push({status:communicationTree.loader.length?'ok':'warn',title:'loader.js解析',detail:communicationTree.loader.length?communicationTree.loader.length+'件取得・解析済み':'loader.jsを取得できませんでした'});
+  diagnostic.steps.push({status:communicationTree.nodes.length?'ok':'warn',title:'通信先ツリー',detail:treeText,tree:true});
+  diagnostic.steps.push({status:communicationTree.flows.length?'ok':'warn',title:'通信フロー',detail:flowText,tree:true});
+  diagnostic.raw.communicationTree=communicationTree;diagnostic.raw.communicationFlow=communicationTree.flows;
   var communication=detectMajsoulCommunication(analysis),fetchCandidates=uniqueMajsoulValues(analysis.fetch.concat(analysis.axios));
   // v4.6.2: REST API判定は雀魂側の外部レスポンスを実際に取得できた場合だけ確定する。
   if(!externalResponseReceived&&communication==='REST API')communication='不明';
