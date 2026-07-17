@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.8.1</title>
+<title>麻雀収支ツール v4.8.2</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -493,10 +493,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.8.1</span></h1>
-    <p id="appSubTitle" class="sub">v4.8.1：Unity framework.jsの通信先解析に対応しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.8.2</span></h1>
+    <p id="appSubTitle" class="sub">v4.8.2：inline Unity configの実URL解析に対応しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.8.1</div>
+  <div id="status" class="status">JS起動OK：v4.8.2</div>
 
 
   <div class="tabs">
@@ -690,7 +690,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.8.1',build:'481',majsoulProvider:{active:'browser',proxyBaseUrl:'',proxyEndpoint:'/api/paipu'}};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.8.2',build:'482',majsoulProvider:{active:'browser',proxyBaseUrl:'',proxyEndpoint:'/api/paipu'}};
 var MAJSOUL_SW_RETRY_KEY='majsoul_sw_bypass_retry_v463';
 var MAJSOUL_SW_RETRY_URL_KEY='majsoul_sw_bypass_url_v463';
 var APP_CONFIG_LOADED=false;
@@ -943,7 +943,7 @@ if(document.getElementById('mtDate')){document.getElementById('mtDate').value=ge
 if('serviceWorker' in navigator){window.addEventListener('load',function(){
   // v4.6.3: 登録解除後の再診断中だけ再登録を止め、次回通常表示では従来どおりPWAを復帰する。
   try{if(sessionStorage.getItem(MAJSOUL_SW_RETRY_KEY)==='1')return;}catch(e){}
-  navigator.serviceWorker.register('./service-worker.js?v=481').catch(function(){});
+  navigator.serviceWorker.register('./service-worker.js?v=482').catch(function(){});
 })}
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -1189,6 +1189,48 @@ var MAJSOUL_KNOWN_LOADER_URLS=[
 function countMajsoulLoaderKeywords(source){
   var counts={};source=String(source||'');Object.keys(MAJSOUL_LOADER_KEYWORD_PATTERNS).forEach(function(keyword){var matches=source.match(MAJSOUL_LOADER_KEYWORD_PATTERNS[keyword]);counts[keyword]=matches?matches.length:0;});return counts;
 }
+function decodeMajsoulStringLiteral(token){
+  token=String(token||'').trim();var quote=token.charAt(0),body=token.slice(1,-1);
+  if(quote==='"'){try{return JSON.parse(token);}catch(e){}}
+  return body.replace(/\\([\\'"`])/g,'$1').replace(/\\n/g,'\n').replace(/\\r/g,'\r');
+}
+function resolveMajsoulStringExpression(expression,variables){
+  expression=String(expression||'').trim().replace(/^\(|\)$/g,'');
+  if(/^`[\s\S]*`$/.test(expression)){var unresolved=false,value=expression.slice(1,-1).replace(/\$\{([A-Za-z_$][\w$]*)\}/g,function(_,name){if(variables[name]==null){unresolved=true;return '';}return variables[name];});return unresolved?null:value;}
+  var pattern=/(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|[A-Za-z_$][\w$]*)/g,parts=[],match,last=0;
+  while((match=pattern.exec(expression))!==null){if(!/^[\s+]*$/.test(expression.slice(last,match.index)))return null;var token=match[0],value;if(/^["'`]/.test(token))value=decodeMajsoulStringLiteral(token);else if(Object.prototype.hasOwnProperty.call(variables,token))value=variables[token];else return null;parts.push(value);last=pattern.lastIndex;}
+  if(!parts.length||!/^[\s+]*$/.test(expression.slice(last)))return null;return parts.join('');
+}
+function analyzeMajsoulInlineUnityConfig(html,baseUrl){
+  var doc=new DOMParser().parseFromString(String(html||''),'text/html'),scripts=[],variables={},properties={},scriptChars=0;
+  Array.prototype.forEach.call(doc.querySelectorAll('script:not([src])'),function(script){var source=String(script.textContent||'');if(source.trim()){scripts.push(source);scriptChars+=source.length;}});
+  scripts.forEach(function(source){
+    for(var pass=0;pass<5;pass++)source.replace(/\b(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*([^;\n]+)/g,function(_,name,expression){var value=resolveMajsoulStringExpression(expression,variables);if(value!=null)variables[name]=value;return _;});
+  });
+  var combined=scripts.join('\n'),configMatch=combined.match(/createUnityInstance\s*\([^,]+,\s*([A-Za-z_$][\w$]*)/),configName=configMatch?configMatch[1]:'config';
+  ['dataUrl','frameworkUrl','codeUrl','streamingAssetsUrl','companyName','productName','productVersion'].forEach(function(key){
+    var patterns=[new RegExp('\\b'+key+'\\s*:\\s*([^,}\\n]+)','g'),new RegExp('\\b(?:'+configName+'|config)\\.'+key+'\\s*=\\s*([^;\\n]+)','g')],value=null;
+    patterns.forEach(function(pattern){var match;while((match=pattern.exec(combined))!==null){var resolved=resolveMajsoulStringExpression(match[1],variables);if(resolved!=null)value=resolved;}});if(value!=null)properties[key]=value;
+  });
+  var resolvedUrls={};['dataUrl','frameworkUrl','codeUrl','streamingAssetsUrl'].forEach(function(key){if(properties[key])resolvedUrls[key]=resolveMajsoulUrl(properties[key],baseUrl);});
+  return {inlineScriptCount:scripts.length,analyzedCharacters:scriptChars,configObjectName:configName,createUnityInstanceFound:!!configMatch,properties:properties,resolvedUrls:resolvedUrls,variables:variables};
+}
+async function diagnoseMajsoulUnityConfigResources(inlineAnalysis){
+  var results=[],config=inlineAnalysis&&inlineAnalysis.resolvedUrls||{};
+  for(var i=0;i<3;i++){
+    var key=['dataUrl','frameworkUrl','codeUrl'][i],url=config[key];if(!url)continue;
+    var result={type:key,requestedUrl:url,responseUrl:null,httpStatus:null,contentType:null,contentLength:null,corsAllowed:false,status:'取得失敗',reason:'未実行',frameworkAnalysis:null};
+    try{
+      var response=await diagnosticFetchWithTimeout(url,9000);result.responseUrl=response.url||url;result.httpStatus=response.status;result.contentType=response.headers.get('content-type')||'不明';result.contentLength=response.headers.get('content-length')||'不明';result.corsAllowed=true;result.status=response.ok?'取得成功':'取得失敗';result.reason=response.ok?'HTTP取得成功':'HTTP '+response.status;
+      if(response.ok&&key==='frameworkUrl'){
+        var source=await response.text(),sourceAnalysis=analyzeMajsoulSource(source,result.responseUrl,false),communicationUrls=uniqueMajsoulValues(sourceAnalysis.fetch.concat(sourceAnalysis.xmlHttpRequestUrls,sourceAnalysis.webSockets,sourceAnalysis.https,sourceAnalysis.apiCandidates));
+        result.frameworkAnalysis={characters:source.length,communicationUrls:communicationUrls,webSockets:sourceAnalysis.webSockets,apiCandidates:sourceAnalysis.apiCandidates,keywords:sourceAnalysis.keywords};
+      }else if(response.body&&response.body.cancel){try{await response.body.cancel();}catch(ignore){}}
+    }catch(error){var classified=classifyFetchError(error);result.reason=classified.code==='CORS_OR_NETWORK'?'CORSまたは通信拒否':classified.message;result.errorCode=classified.code;}
+    results.push(result);
+  }
+  return results;
+}
 function analyzeMajsoulSource(source,baseUrl,isHtml){
   source=String(source||'');
   var result={html:!!isHtml,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,xmlHttpRequestUrls:[],webSockets:[],https:[],apiCandidates:[],unityResources:[],streamingAssetsUrls:[],keywords:{}};
@@ -1278,8 +1320,9 @@ async function traceMajsoulScriptTree(initialScripts,htmlUrl,analysis){
 }
 function formatMajsoulCommunicationTree(tree){
   var lines=['HTML: '+tree.root];
+  if(tree.inlineUnityConfig){lines.push('└── inline config: '+tree.inlineUnityConfig.configObjectName);var urls=tree.inlineUnityConfig.resolvedUrls||{},resourceResults=tree.inlineResourceResults||[];['dataUrl','frameworkUrl','codeUrl','streamingAssetsUrl'].forEach(function(key){if(urls[key]){var resource=resourceResults.find(function(item){return item.type===key;}),status=resource?' ['+resource.status+(resource.httpStatus!=null?' HTTP '+resource.httpStatus:'')+']':'';lines.push('    ├── '+key+': '+urls[key]+status);if(resource&&resource.frameworkAnalysis)resource.frameworkAnalysis.communicationUrls.forEach(function(url){lines.push('    │   └── 通信先: '+url);});}});}
   var loaders=tree.nodes.filter(function(node){return node.depth===1;});
-  loaders.forEach(function(loader){lines.push('└── loader.js: '+loader.url+' ['+loader.status+']');var children=tree.nodes.filter(function(node){return node.parent===loader.url;}),entries=children.map(function(node){return {type:'script',node:node};}).concat(loader.communications.map(function(target){return {type:'target',target:target};}));entries.forEach(function(entry,index){var branch=index===entries.length-1?'    └── ':'    ├── ';if(entry.type==='script'){lines.push(branch+entry.node.type+': '+entry.node.url+' ['+entry.node.status+']');entry.node.communications.forEach(function(target){lines.push('    │   └── 通信先: '+target.type+' / '+target.value);});}else lines.push(branch+'通信候補: '+entry.target.type+' / '+entry.target.value);});});
+  loaders.forEach(function(loader){lines.push((tree.inlineUnityConfig?'    └── ':'└── ')+'loader.js: '+loader.url+' ['+loader.status+']');var children=tree.nodes.filter(function(node){return node.parent===loader.url;}),entries=children.map(function(node){return {type:'script',node:node};}).concat(loader.communications.map(function(target){return {type:'target',target:target};}));entries.forEach(function(entry,index){var branch=index===entries.length-1?'        └── ':'        ├── ';if(entry.type==='script'){lines.push(branch+entry.node.type+': '+entry.node.url+' ['+entry.node.status+']');entry.node.communications.forEach(function(target){lines.push('        │   └── 通信先: '+target.type+' / '+target.value);});}else lines.push(branch+'通信候補: '+entry.target.type+' / '+entry.target.value);});});
   if(!loaders.length)lines.push('└── loader.js: 未検出');
   return lines.join('\n');
 }
@@ -1335,13 +1378,13 @@ function renderMajsoulDiagnostic(diagnostic){
 }
 async function runBrowserProviderDiagnostic(paipuId,originalUrl){
   var swState=await getMajsoulServiceWorkerState();
-  var diagnostic={version:'4.8.1',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{serviceWorker:swState}};
+  var diagnostic={version:'4.8.2',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{serviceWorker:swState}};
   diagnostic.steps.push({status:swState.controller?'warn':'ok',title:'Service Worker状態',detail:swState.registrationState+' ／ controller: '+(swState.controller?'あり':'なし')+(swState.controllerScriptURL?' ／ '+swState.controllerScriptURL:'')});
   diagnostic.steps.push({status:'ok',title:'Cache状態',detail:swState.cacheState+(swState.cacheKeys.length?' ／ '+swState.cacheKeys.join(', '):'')});
   diagnostic.steps.push({status:'ok',title:'診断fetch設定',detail:'mode: '+swState.fetchMode+' ／ credentials: '+swState.fetchCredentials+' ／ cache: '+swState.fetchCache+' ／ redirect: '+swState.fetchRedirect});
   var candidates=buildMajsoulFetchCandidates(paipuId,originalUrl),readablePayload=null,directReadable=false,binaryReadable=false;
   var analysis={html:false,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,xmlHttpRequestUrls:[],webSockets:[],https:[],apiCandidates:[],unityResources:[],streamingAssetsUrls:[],keywords:{}};
-  var htmlSourceUrl='',htmlScriptUrls=[];
+  var htmlSourceUrl='',htmlScriptUrls=[],inlineUnityAnalysis=null;
   var externalResponseReceived=false;
   for(var i=0;i<candidates.length;i++){
     var candidate=candidates[i],started=Date.now();
@@ -1363,7 +1406,7 @@ async function runBrowserProviderDiagnostic(paipuId,originalUrl){
       if(serviceWorkerPossible){if(!candidate.gameRecord)diagnostic.steps.push({status:'ng',title:candidate.label,detail:'Service Workerフォールバックを検出しました。外部取得成功から除外します'});continue;}
       if(info.kind==='json'&&genuineExternalResponse){directReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'ok',title:candidate.label,detail:'外部JSONを直接読み取れました（'+info.bytes+' bytes）'});}
       else if(info.kind==='binary'&&info.bytes>0&&genuineExternalResponse){directReadable=true;binaryReadable=true;readablePayload=info.payload;if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'外部バイナリを直接取得できました（'+info.bytes+' bytes）。Protobuf変換が必要です'});}
-      else if(info.kind==='html'&&genuineExternalResponse){if(!htmlSourceUrl)htmlSourceUrl=finalUrl;var htmlResult=analyzeMajsoulSource(info.payload,candidate.url,true);htmlScriptUrls=uniqueMajsoulValues(htmlScriptUrls.concat(htmlResult.scripts));mergeMajsoulAnalysis(analysis,htmlResult);if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'外部HTMLを検出しました。牌譜データから除外して通信情報を解析しました'});}
+      else if(info.kind==='html'&&genuineExternalResponse){if(!htmlSourceUrl)htmlSourceUrl=finalUrl;var htmlResult=analyzeMajsoulSource(info.payload,candidate.url,true);if(!candidate.gameRecord)inlineUnityAnalysis=analyzeMajsoulInlineUnityConfig(info.payload,finalUrl);htmlScriptUrls=uniqueMajsoulValues(htmlScriptUrls.concat(htmlResult.scripts));mergeMajsoulAnalysis(analysis,htmlResult);if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'外部HTMLとinline scriptを解析しました'});}
       else if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'通信は成功しましたが、牌譜本体ではないテキストでした'});
     }catch(error){
       var classified=classifyFetchError(error);
@@ -1373,6 +1416,10 @@ async function runBrowserProviderDiagnostic(paipuId,originalUrl){
   }
   // v4.7.2: htmlAnalysis.scripts相当の抽出直後配列と集約済み配列を両方渡し、候補消失を防止する。
   var communicationTree=await traceMajsoulScriptTree(uniqueMajsoulValues(htmlScriptUrls.concat(analysis.scripts)),htmlSourceUrl||originalUrl,analysis);
+  var inlineResources=await diagnoseMajsoulUnityConfigResources(inlineUnityAnalysis);communicationTree.inlineUnityConfig=inlineUnityAnalysis;communicationTree.inlineResourceResults=inlineResources;
+  inlineResources.forEach(function(resource){if(resource.frameworkAnalysis)resource.frameworkAnalysis.communicationUrls.forEach(function(url){communicationTree.flows.push((htmlSourceUrl||originalUrl)+' → inline config → '+resource.requestedUrl+' → '+url);});});communicationTree.flows=uniqueMajsoulValues(communicationTree.flows);
+  if(inlineUnityAnalysis){var preferredUrls=['dataUrl','frameworkUrl','codeUrl'].map(function(key){return inlineUnityAnalysis.resolvedUrls[key];}).filter(Boolean);analysis.unityResources=uniqueMajsoulValues(preferredUrls.concat(analysis.unityResources));diagnostic.steps.push({status:preferredUrls.length?'ok':'warn',title:'inline Unity config',detail:'config: '+inlineUnityAnalysis.configObjectName+' ／ dataUrl: '+(inlineUnityAnalysis.resolvedUrls.dataUrl||'なし')+' ／ frameworkUrl: '+(inlineUnityAnalysis.resolvedUrls.frameworkUrl||'なし')+' ／ codeUrl: '+(inlineUnityAnalysis.resolvedUrls.codeUrl||'なし')+' ／ streamingAssetsUrl: '+(inlineUnityAnalysis.resolvedUrls.streamingAssetsUrl||'なし')+' ／ companyName: '+(inlineUnityAnalysis.properties.companyName||'なし')+' ／ productName: '+(inlineUnityAnalysis.properties.productName||'なし')+' ／ productVersion: '+(inlineUnityAnalysis.properties.productVersion||'なし')});}
+  inlineResources.forEach(function(resource){diagnostic.steps.push({status:resource.status==='取得成功'?'ok':'warn',title:'Unity config '+resource.type,detail:'requestedUrl: '+resource.requestedUrl+' ／ responseUrl: '+(resource.responseUrl||'取得不可')+' ／ HTTP: '+(resource.httpStatus==null?'取得不可':resource.httpStatus)+' ／ Content-Type: '+(resource.contentType||'取得不可')+' ／ CORS: '+(resource.corsAllowed?'可':'不可')+' ／ Content-Length: '+(resource.contentLength||'不明')+' ／ 理由: '+resource.reason+(resource.frameworkAnalysis?' ／ 通信先: '+(resource.frameworkAnalysis.communicationUrls.join(' / ')||'なし'):'')});});
   var treeText=formatMajsoulCommunicationTree(communicationTree),flowText=communicationTree.flows.length?communicationTree.flows.join('\n'):'通信先を抽出できませんでした';
   var loaderCorsFailure=communicationTree.loader.some(function(loader){return loader.errorCode==='CORS_OR_NETWORK';}),loaderSuccess=communicationTree.loader.some(function(loader){return loader.status==='取得成功';});
   diagnostic.steps.push({status:loaderSuccess?'ok':'warn',title:'loader.js解析',detail:loaderSuccess?'loader.js本体を取得・解析しました':(loaderCorsFailure?'loader.js取得失敗（CORS）':(communicationTree.loaderUrls.length?'loader.js取得失敗':'loader.jsをHTMLから検出できませんでした'))});
@@ -1385,6 +1432,7 @@ async function runBrowserProviderDiagnostic(paipuId,originalUrl){
   diagnostic.raw.communicationTree=communicationTree;diagnostic.raw.communicationFlow=communicationTree.flows;
   diagnostic.raw.loaderUrls=communicationTree.loaderUrls;
   diagnostic.raw.frameworkAnalysis={frameworkUrls:communicationTree.frameworkUrls,results:communicationTree.framework,communicationUrls:uniqueMajsoulValues([].concat.apply([],communicationTree.framework.map(function(result){return result.communicationUrls||[];}))),unityResources:analysis.unityResources,streamingAssetsUrls:analysis.streamingAssetsUrls};
+  diagnostic.raw.inlineScriptAnalysis=inlineUnityAnalysis;diagnostic.raw.unityConfig=inlineUnityAnalysis?{configObjectName:inlineUnityAnalysis.configObjectName,createUnityInstanceFound:inlineUnityAnalysis.createUnityInstanceFound,properties:inlineUnityAnalysis.properties,resolvedUrls:inlineUnityAnalysis.resolvedUrls}:null;diagnostic.raw.unityConfigResources=inlineResources;
   diagnostic.raw.javascriptAnalysis={analyzedJsCount:communicationTree.analyzedJsCount,analyzedCharacters:communicationTree.analyzedCharacters,extractedKeywords:communicationTree.extractedKeywords,keywordCounts:communicationTree.keywordCounts};
   var communication=detectMajsoulCommunication(analysis),fetchCandidates=uniqueMajsoulValues(analysis.fetch.concat(analysis.axios));
   // v4.6.2: REST API判定は雀魂側の外部レスポンスを実際に取得できた場合だけ確定する。
@@ -1438,7 +1486,7 @@ function buildMajsoulProxyRequestUrl(paipuId,config){
 async function runProxyProviderDiagnostic(paipuId,originalUrl,config){
   var requestUrl=buildMajsoulProxyRequestUrl(paipuId,config);
   // v4.8.0: 中継API公開前は通信せず、将来のAPI契約と接続先だけを診断へ提示する。
-  var diagnostic={version:'4.8.0',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,provider:{key:'proxy',name:'ProxyProvider',implemented:false},steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId},{status:'warn',title:'現在使用中Provider',detail:'ProxyProvider（ダミー実装）'},{status:'warn',title:'中継API',detail:'GET '+requestUrl+' ／ 中継APIは未接続です'}],attempts:[],raw:{provider:{key:'proxy',name:'ProxyProvider',implemented:false,request:{method:'GET',url:requestUrl,apiFormat:'GET /api/paipu?id={paipuId}'},expectedResponse:MAJSOUL_PROXY_RESPONSE_SCHEMA,originalUrl:originalUrl}}};
+  var diagnostic={version:'4.8.2',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,provider:{key:'proxy',name:'ProxyProvider',implemented:false},steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId},{status:'warn',title:'現在使用中Provider',detail:'ProxyProvider（ダミー実装）'},{status:'warn',title:'中継API',detail:'GET '+requestUrl+' ／ 中継APIは未接続です'}],attempts:[],raw:{provider:{key:'proxy',name:'ProxyProvider',implemented:false,request:{method:'GET',url:requestUrl,apiFormat:'GET /api/paipu?id={paipuId}'},expectedResponse:MAJSOUL_PROXY_RESPONSE_SCHEMA,originalUrl:originalUrl}}};
   diagnostic.summary='ProxyProviderは将来接続用のダミー実装です。app.jsonでBrowserProviderへ戻せます。';diagnostic.level='warning';renderMajsoulDiagnostic(diagnostic);return diagnostic;
 }
 var MAJSOUL_PAIPU_PROVIDERS={
