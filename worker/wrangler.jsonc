@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mahjong-paipu-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-18",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGIN": "https://8h4f6g6dgf-hub.github.io"
+  }
+}
