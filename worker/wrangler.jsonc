@@ -2,7 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mahjong-paipu-proxy",
   "main": "src/index.js",
-  "compatibility_date": "2026-07-18",
+  // v5.1.0: Cloudflare UTC基準で未来日扱いされない直近の互換日付へ固定する。
+  "compatibility_date": "2026-07-17",
   "workers_dev": true,
   "vars": {
     "ALLOWED_ORIGIN": "https://8h4f6g6dgf-hub.github.io"

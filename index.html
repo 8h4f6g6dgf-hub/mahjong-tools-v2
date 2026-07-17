@@ -711,7 +711,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 var HISTORY_KEY='mahjong_tool_history_v120';
 
 // v5.1.0: 正式Worker接続版のビルド情報を診断へ渡し、旧設定は互換読込する。
-var APP_CONFIG={name:'麻雀収支ツール',version:'5.1.0',build:'510',buildId:'20260718-0544',buildTime:'2026-07-18T05:44:08+09:00',commit:'取得不可',serviceWorkerVersion:'5.1.0',cacheName:'mahjong-tools-v5.1.0',environment:'GitHub Pages',majsoulProvider:{active:'proxy',proxyBaseUrl:'',proxyEndpoint:'/api/paipu'}};
+var APP_CONFIG={name:'麻雀収支ツール',version:'5.1.0',build:'510',buildId:'20260718-0544',buildTime:'2026-07-18T05:44:08+09:00',commit:'取得不可',serviceWorkerVersion:'5.1.0',cacheName:'mahjong-tools-v5.1.0',environment:'GitHub Pages',majsoulProvider:{active:'proxy',proxyBaseUrl:'https://mahjong-paipu-proxy.mahjong-paihu.workers.dev',proxyEndpoint:'/api/paipu'}};
 var MAJSOUL_PROVIDER_SETTINGS_KEY='mahjong_majsoul_provider_v500';
 var MAJSOUL_SW_RETRY_KEY='majsoul_sw_bypass_retry_v463';
 var MAJSOUL_SW_RETRY_URL_KEY='majsoul_sw_bypass_url_v463';
@@ -1549,7 +1549,9 @@ async function testMajsoulWorkerHealth(){
   try{baseUrl=normalizeMajsoulWorkerBaseUrl(input&&input.value);if(!baseUrl)throw new Error('WorkerベースURLを入力してください');renderMajsoulWorkerHealth('',null,null);setMajsoulWorkerStatus('接続中','');var result=await fetchMajsoulWorkerJson(baseUrl+'/health',8000),elapsed=Math.round(performance.now()-started);if(!result.response.ok||!result.body.ok)throw new Error(result.body&&result.body.error&&result.body.error.message||'HTTP '+result.response.status);if(result.body.service!=='mahjong-paipu-proxy')throw new Error('Service名が一致しません');if(result.body.version!=='5.1.0')throw new Error('Worker Version不一致：'+result.body.version);renderMajsoulWorkerHealth(result.body.service,result.body.version,elapsed);setMajsoulWorkerStatus('成功','success');}catch(e){renderMajsoulWorkerHealth('',null,null);setMajsoulWorkerStatus('失敗：'+(e.name==='AbortError'?'タイムアウト':e.message),'error');}
 }
 function getMajsoulProviderConfig(){
-  var configured=Object.assign({},APP_CONFIG&&APP_CONFIG.majsoulProvider||{},readMajsoulProviderSettings());
+  var defaults=APP_CONFIG&&APP_CONFIG.majsoulProvider||{},saved=readMajsoulProviderSettings(),configured=Object.assign({},defaults,saved);
+  // v5.1.0: 旧版で保存された空URLが正式Worker URLを上書きしないよう補完する。
+  if(!configured.proxyBaseUrl)configured.proxyBaseUrl=defaults.proxyBaseUrl||'';
   return {active:String(configured.active||'proxy').toLowerCase(),proxyBaseUrl:String(configured.proxyBaseUrl||'').replace(/\/+$/,''),proxyEndpoint:String(configured.proxyEndpoint||'/api/paipu')};
 }
 function buildMajsoulProxyRequestUrl(paipuId,config){

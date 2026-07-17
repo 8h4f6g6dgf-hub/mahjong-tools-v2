@@ -13,7 +13,7 @@
   "description": "Cloudflare Workerの正式接続テストとHealth情報表示に対応",
   "majsoulProvider": {
     "active": "proxy",
-    "proxyBaseUrl": "",
+    "proxyBaseUrl": "https://mahjong-paipu-proxy.mahjong-paihu.workers.dev",
     "proxyEndpoint": "/api/paipu"
   }
 }

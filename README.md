@@ -2,6 +2,8 @@
 
 GitHub Pagesで動作するPWAです。v5.1.0では雀魂牌譜の通信経路としてCloudflare WorkersのProxyProviderを正式採用しています。牌譜本体の取得はv5.2.0で実装予定です。
 
+デプロイ済みWorker：`https://mahjong-paipu-proxy.mahjong-paihu.workers.dev`
+
 ## ゆうひさん向け：Cloudflare Workerのデプロイ手順
 
 ### ① Cloudflareへログイン
