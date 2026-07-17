@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v4.6.1</title>
+<title>麻雀収支ツール v4.6.2</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -492,10 +492,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.6.1</span></h1>
-    <p id="appSubTitle" class="sub">v4.6.1：game_record候補のレスポンス詳細診断を追加しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v4.6.2</span></h1>
+    <p id="appSubTitle" class="sub">v4.6.2：診断通信のService Workerフォールバックを修正しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v4.6.1</div>
+  <div id="status" class="status">JS起動OK：v4.6.2</div>
 
 
   <div class="tabs">
@@ -686,7 +686,7 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-var APP_CONFIG={name:'麻雀収支ツール',version:'4.6.1',build:'461'};
+var APP_CONFIG={name:'麻雀収支ツール',version:'4.6.2',build:'462'};
 var APP_CONFIG_LOADED=false;
 var MTOURNAMENT_SCHEDULE={};
 var MTOURNAMENT_MATCHES_BY_DATE={};
@@ -1067,6 +1067,10 @@ function fetchWithTimeout(url,options,timeoutMs){
   var controller=new AbortController();
   var timer=window.setTimeout(function(){controller.abort();},timeoutMs||9000);
   var opts=Object.assign({},options||{},{signal:controller.signal,cache:'no-store'});
+  // v4.6.2: 同一オリジンの診断だけ識別し、外部通信にはCORS preflightを増やす独自ヘッダーを付けない。
+  try{
+    if(new URL(url,location.href).origin===location.origin){var headers=new Headers(opts.headers||{});headers.set('X-Mahjong-Diagnostic','1');opts.headers=headers;}
+  }catch(e){}
   return fetch(url,opts).finally(function(){window.clearTimeout(timer);});
 }
 function classifyFetchError(error){
@@ -1111,6 +1115,14 @@ function detectMajsoulResponseFormat(contentType,text,bytes){
 function hasBinaryMajsoulBytes(bytes){
   var sample=Array.prototype.slice.call(bytes||[],0,128),control=sample.filter(function(value){return value===0||(value<9)||(value>13&&value<32);}).length;
   return sample.length>0&&control/sample.length>0.1;
+}
+function getMajsoulOrigin(url){
+  try{return new URL(url,location.href).origin;}catch(e){return '不明';}
+}
+function isCurrentAppHtml(text){
+  // v4.6.2: バージョン表記に依存しない固有要素を照合し、旧キャッシュのindex.htmlも検出する。
+  text=String(text||'');
+  return isHtmlResponseBody(text)&&text.indexOf('id="appVersionBadge"')>=0&&text.indexOf('id="majsoulDiagnosticCard"')>=0&&text.indexOf("HISTORY_KEY='mahjong_tool_history_v120'")>=0;
 }
 function uniqueMajsoulValues(values){
   return Array.from(new Set((values||[]).filter(Boolean)));
@@ -1203,38 +1215,44 @@ function renderMajsoulDiagnostic(diagnostic){
   if(raw)raw.textContent=JSON.stringify(diagnostic.raw||{},null,2);
 }
 async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
-  var diagnostic={version:'4.6.1',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{}};
+  var diagnostic={version:'4.6.2',testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{}};
   var candidates=buildMajsoulFetchCandidates(paipuId,originalUrl),readablePayload=null,directReadable=false,binaryReadable=false;
   var analysis={html:false,scripts:[],inlineScripts:0,fetch:[],axios:[],xmlHttpRequest:false,webSockets:[],https:[],apiCandidates:[]};
+  var externalResponseReceived=false;
   for(var i=0;i<candidates.length;i++){
     var candidate=candidates[i],started=Date.now();
     try{
       var response=await fetchWithTimeout(candidate.url,{mode:'cors',credentials:'omit'},9000);
       var info=await readDiagnosticResponse(response,candidate.responseType);
       var finalUrl=response.url||candidate.url,redirected=!!response.redirected;
+      var requestedOrigin=getMajsoulOrigin(candidate.url),responseOrigin=getMajsoulOrigin(finalUrl),appHtmlMatch=info.kind==='html'&&isCurrentAppHtml(info.payload);
+      var serviceWorkerPossible=appHtmlMatch||(requestedOrigin!==location.origin&&responseOrigin===location.origin);
+      var genuineExternalResponse=requestedOrigin!==location.origin&&responseOrigin!==location.origin&&!appHtmlMatch;
+      if(response.ok&&genuineExternalResponse)externalResponseReceived=true;
       var validRecordFormat=info.format==='JSON'||info.format==='Protobuf候補';
-      var reason=!response.ok?'HTTP '+response.status:(info.format==='HTML'?'HTMLページへのフォールバック':(validRecordFormat?'牌譜データ候補として取得成功':'牌譜データ形式を確認できません'));
-      var attempt={key:candidate.key,label:candidate.label,requestedUrl:candidate.url,finalUrl:finalUrl,ok:response.ok,status:response.status,statusText:response.statusText,type:response.type,elapsedMs:Date.now()-started,contentType:info.contentType||'不明',contentLength:info.contentLength||info.bytes,contentLengthSource:info.contentLength?'header':'body',actualBytes:info.bytes,redirected:redirected,responseFormat:info.format,first128Bytes:info.preview,reason:reason};
+      var reason=!response.ok?'HTTP '+response.status:(serviceWorkerPossible?'Service Workerフォールバック':(info.format==='HTML'?'HTMLページへのフォールバック':(validRecordFormat&&genuineExternalResponse?'外部の牌譜データ候補として取得成功':'牌譜データ形式を確認できません')));
+      var attempt={key:candidate.key,label:candidate.label,requestedUrl:candidate.url,responseUrl:finalUrl,finalUrl:finalUrl,requestedOrigin:requestedOrigin,responseOrigin:responseOrigin,serviceWorkerPossible:serviceWorkerPossible,currentAppHtmlMatch:appHtmlMatch,genuineExternalResponse:genuineExternalResponse,ok:response.ok,status:response.status,statusText:response.statusText,type:response.type,elapsedMs:Date.now()-started,contentType:info.contentType||'不明',contentLength:info.contentLength||info.bytes,contentLengthSource:info.contentLength?'header':'body',actualBytes:info.bytes,redirected:redirected,responseFormat:info.format,first128Bytes:info.preview,reason:reason};
       diagnostic.attempts.push(attempt);
-      if(candidate.gameRecord){
-        diagnostic.steps.push({status:!response.ok?'ng':(validRecordFormat?'ok':'warn'),title:candidate.label,detail:'最終URL: '+finalUrl+' ／ HTTP: '+response.status+' ／ Content-Type: '+attempt.contentType+' ／ Content-Length: '+attempt.contentLength+(attempt.contentLengthSource==='body'?'（本文実測）':'')+' ／ リダイレクト: '+(redirected?'あり':'なし')+' ／ 形式: '+info.format+' ／ 理由: '+reason+' ／ 先頭128バイト: '+(info.preview||'なし')});
-      }
+      diagnostic.steps.push({status:!response.ok||serviceWorkerPossible?'ng':(validRecordFormat&&genuineExternalResponse?'ok':'warn'),title:candidate.label+' 通信詳細',detail:'requestedUrl: '+candidate.url+' ／ response.url: '+finalUrl+' ／ requested origin: '+requestedOrigin+' ／ response origin: '+responseOrigin+' ／ Service Worker経由の可能性: '+(serviceWorkerPossible?'あり':'なし')+' ／ 自アプリHTML一致: '+(appHtmlMatch?'はい':'いいえ')+' ／ HTTP: '+response.status+' ／ Content-Type: '+attempt.contentType+' ／ Content-Length: '+attempt.contentLength+(attempt.contentLengthSource==='body'?'（本文実測）':'')+' ／ リダイレクト: '+(redirected?'あり':'なし')+' ／ 形式: '+info.format+' ／ 理由: '+reason+' ／ 先頭128バイト: '+(info.preview||'なし')});
       if(!response.ok){if(!candidate.gameRecord)diagnostic.steps.push({status:'ng',title:candidate.label,detail:'HTTP '+response.status+'。データを取得できませんでした'});continue;}
-      if(info.kind==='json'){directReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'ok',title:candidate.label,detail:'JSONを直接読み取れました（'+info.bytes+' bytes）'});}
-      else if(info.kind==='binary'&&info.bytes>0){directReadable=true;binaryReadable=true;readablePayload=info.payload;if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'バイナリを直接取得できました（'+info.bytes+' bytes）。Protobuf変換が必要です'});}
-      else if(info.kind==='html'){mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(info.payload,candidate.url,true));if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'HTMLを検出しました。牌譜データから除外して通信情報を解析しました'});}
+      if(serviceWorkerPossible){if(!candidate.gameRecord)diagnostic.steps.push({status:'ng',title:candidate.label,detail:'Service Workerフォールバックを検出しました。外部取得成功から除外します'});continue;}
+      if(info.kind==='json'&&genuineExternalResponse){directReadable=true;readablePayload=info.payload;diagnostic.steps.push({status:'ok',title:candidate.label,detail:'外部JSONを直接読み取れました（'+info.bytes+' bytes）'});}
+      else if(info.kind==='binary'&&info.bytes>0&&genuineExternalResponse){directReadable=true;binaryReadable=true;readablePayload=info.payload;if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'外部バイナリを直接取得できました（'+info.bytes+' bytes）。Protobuf変換が必要です'});}
+      else if(info.kind==='html'&&genuineExternalResponse){mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(info.payload,candidate.url,true));if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'外部HTMLを検出しました。牌譜データから除外して通信情報を解析しました'});}
       else if(!candidate.gameRecord)diagnostic.steps.push({status:'warn',title:candidate.label,detail:'通信は成功しましたが、牌譜本体ではないテキストでした'});
     }catch(error){
       var classified=classifyFetchError(error);
-      diagnostic.attempts.push({key:candidate.key,label:candidate.label,requestedUrl:candidate.url,finalUrl:null,ok:false,errorCode:classified.code,error:classified.message,reason:classified.message,elapsedMs:Date.now()-started});
-      diagnostic.steps.push({status:'ng',title:candidate.label,detail:classified.message});
+      diagnostic.attempts.push({key:candidate.key,label:candidate.label,requestedUrl:candidate.url,responseUrl:null,finalUrl:null,requestedOrigin:getMajsoulOrigin(candidate.url),responseOrigin:null,serviceWorkerPossible:false,currentAppHtmlMatch:false,genuineExternalResponse:false,ok:false,errorCode:classified.code,error:classified.message,reason:classified.message,elapsedMs:Date.now()-started});
+      diagnostic.steps.push({status:'ng',title:candidate.label+' 通信詳細',detail:'requestedUrl: '+candidate.url+' ／ response.url: 取得不可 ／ requested origin: '+getMajsoulOrigin(candidate.url)+' ／ response origin: 取得不可 ／ Service Worker経由の可能性: なし ／ 自アプリHTML一致: いいえ ／ 理由: '+classified.message});
     }
   }
   // v4.6.0: HTMLが参照するJSもCORSで取得可能な範囲だけ解析し、失敗は既存診断の成否に影響させない。
   for(var scriptIndex=0;scriptIndex<analysis.scripts.length&&scriptIndex<12;scriptIndex++){
-    try{var scriptResponse=await fetchWithTimeout(analysis.scripts[scriptIndex],{mode:'cors',credentials:'omit'},7000);if(scriptResponse.ok)mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(await scriptResponse.text(),analysis.scripts[scriptIndex],false));}catch(e){}
+    try{var scriptResponse=await fetchWithTimeout(analysis.scripts[scriptIndex],{mode:'cors',credentials:'omit'},7000);if(scriptResponse.ok&&getMajsoulOrigin(scriptResponse.url)!==location.origin)mergeMajsoulAnalysis(analysis,analyzeMajsoulSource(await scriptResponse.text(),analysis.scripts[scriptIndex],false));}catch(e){}
   }
   var communication=detectMajsoulCommunication(analysis),fetchCandidates=uniqueMajsoulValues(analysis.fetch.concat(analysis.axios));
+  // v4.6.2: REST API判定は雀魂側の外部レスポンスを実際に取得できた場合だけ確定する。
+  if(!externalResponseReceived&&communication==='REST API')communication='不明';
   diagnostic.steps.push({status:analysis.html?'ok':'warn',title:'HTML',detail:analysis.html?'検出・解析済み':'検出なし'});
   diagnostic.steps.push({status:analysis.scripts.length?'ok':'warn',title:'Scripts',detail:analysis.scripts.length+'件（inline '+analysis.inlineScripts+'件）'});
   diagnostic.steps.push({status:fetchCandidates.length||analysis.xmlHttpRequest?'ok':'warn',title:'Fetch',detail:fetchCandidates.length+'件'+(analysis.xmlHttpRequest?'／XMLHttpRequestあり':'')});

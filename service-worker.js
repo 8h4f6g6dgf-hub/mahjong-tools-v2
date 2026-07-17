@@ -1,5 +1,5 @@
-// v4.6.1: game_record詳細診断をPWAへ確実に配信するためキャッシュ世代を更新。
-const CACHE_NAME = 'mahjong-tools-v4.6.1';
+// v4.6.2: 診断通信のフォールバック修正を確実に配信するためキャッシュ世代を更新。
+const CACHE_NAME = 'mahjong-tools-v4.6.2';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -33,6 +33,12 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const requestUrl = new URL(event.request.url);
+
+  // v4.6.2: 外部オリジンはキャッシュもSPAフォールバックも行わず、ブラウザ標準通信へ完全に委ねる。
+  if (requestUrl.origin !== self.location.origin) return;
+
+  // v4.6.2: 同一オリジンの診断通信もindex.htmlへ置換しない。respondWithを呼ばないことが重要。
+  if (event.request.headers.get('X-Mahjong-Diagnostic') === '1') return;
 
   // Mトーナメントデータは常にネット優先。
   // GitHub上の mtournament.json を更新すれば、古いPWAキャッシュではなく最新データを取得する。

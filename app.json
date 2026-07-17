@@ -1,8 +1,8 @@
 {
   "name": "麻雀収支ツール",
-  "version": "4.6.1",
-  "build": "461",
+  "version": "4.6.2",
+  "build": "462",
   "releaseDate": "2026-07-17",
   "dataVersion": "2.5.5",
-  "description": "雀魂game_record候補の取得結果、リダイレクト、形式、先頭128バイトの詳細診断に対応"
+  "description": "雀魂診断通信のService Workerフォールバック除外と外部レスポンス検証に対応"
 }
