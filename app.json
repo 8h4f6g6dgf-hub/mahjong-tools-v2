@@ -1,8 +1,8 @@
 {
   "name": "麻雀収支ツール",
-  "version": "4.7.1",
-  "build": "471",
+  "version": "4.7.2",
+  "build": "472",
   "releaseDate": "2026-07-17",
   "dataVersion": "2.5.5",
-  "description": "雀魂loader.js本体と子JSを1階層解析し、解析数・文字数・キーワードを診断"
+  "description": "雀魂Unity loader.jsのHTML抽出候補と既知2候補を比較取得し、関連ファイルを診断"
 }
