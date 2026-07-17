@@ -40,6 +40,23 @@ self.addEventListener('fetch', (event) => {
   // v4.6.2: 同一オリジンの診断通信もindex.htmlへ置換しない。respondWithを呼ばないことが重要。
   if (event.request.headers.get('X-Mahjong-Diagnostic') === '1') return;
 
+  // v4.8.2: 旧Service Workerのキャッシュにindex/app設定が固定されないよう、コアファイルと画面遷移はネットワーク優先。
+  const isCoreRequest = event.request.mode === 'navigate' || [
+    '/index.html', '/app.json', '/manifest.json', '/service-worker.js'
+  ].some((suffix) => requestUrl.pathname.endsWith(suffix));
+  if (isCoreRequest) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .then((networkResponse) => {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request).then((cachedResponse) => cachedResponse || caches.match('./index.html')))
+    );
+    return;
+  }
+
   // Mトーナメントデータは常にネット優先。
   // GitHub上の mtournament.json を更新すれば、古いPWAキャッシュではなく最新データを取得する。
   if (requestUrl.pathname.endsWith('/mtournament.json')) {

@@ -943,7 +943,8 @@ if(document.getElementById('mtDate')){document.getElementById('mtDate').value=ge
 if('serviceWorker' in navigator){window.addEventListener('load',function(){
   // v4.6.3: 登録解除後の再診断中だけ再登録を止め、次回通常表示では従来どおりPWAを復帰する。
   try{if(sessionStorage.getItem(MAJSOUL_SW_RETRY_KEY)==='1')return;}catch(e){}
-  navigator.serviceWorker.register('./service-worker.js?v=482').catch(function(){});
+  // v4.8.2: 旧index.htmlのHTTPキャッシュに影響されず、Service Worker本体の更新確認を必ず行う。
+  navigator.serviceWorker.register('./service-worker.js?v=482',{updateViaCache:'none'}).then(function(registration){return registration.update();}).catch(function(){});
 })}
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -1432,7 +1433,10 @@ async function runBrowserProviderDiagnostic(paipuId,originalUrl){
   diagnostic.raw.communicationTree=communicationTree;diagnostic.raw.communicationFlow=communicationTree.flows;
   diagnostic.raw.loaderUrls=communicationTree.loaderUrls;
   diagnostic.raw.frameworkAnalysis={frameworkUrls:communicationTree.frameworkUrls,results:communicationTree.framework,communicationUrls:uniqueMajsoulValues([].concat.apply([],communicationTree.framework.map(function(result){return result.communicationUrls||[];}))),unityResources:analysis.unityResources,streamingAssetsUrls:analysis.streamingAssetsUrls};
-  diagnostic.raw.inlineScriptAnalysis=inlineUnityAnalysis;diagnostic.raw.unityConfig=inlineUnityAnalysis?{configObjectName:inlineUnityAnalysis.configObjectName,createUnityInstanceFound:inlineUnityAnalysis.createUnityInstanceFound,properties:inlineUnityAnalysis.properties,resolvedUrls:inlineUnityAnalysis.resolvedUrls}:null;diagnostic.raw.unityConfigResources=inlineResources;
+  var unityConfigResult=inlineUnityAnalysis?{configObjectName:inlineUnityAnalysis.configObjectName,createUnityInstanceFound:inlineUnityAnalysis.createUnityInstanceFound,properties:inlineUnityAnalysis.properties,resolvedUrls:inlineUnityAnalysis.resolvedUrls}:null;
+  diagnostic.raw.inlineScriptAnalysis=inlineUnityAnalysis;diagnostic.raw.unityConfig=unityConfigResult;diagnostic.raw.unityConfigResources=inlineResources;
+  // v4.8.2: コピーJSONで必須項目を直接確認できるよう、raw内に加えてトップレベルにも常に保存する。
+  diagnostic.inlineScriptAnalysis=inlineUnityAnalysis;diagnostic.unityConfig=unityConfigResult;diagnostic.dataUrl=unityConfigResult&&unityConfigResult.resolvedUrls.dataUrl||null;diagnostic.frameworkUrl=unityConfigResult&&unityConfigResult.resolvedUrls.frameworkUrl||null;diagnostic.codeUrl=unityConfigResult&&unityConfigResult.resolvedUrls.codeUrl||null;diagnostic.streamingAssetsUrl=unityConfigResult&&unityConfigResult.resolvedUrls.streamingAssetsUrl||null;diagnostic.unityResourceFetchResults=inlineResources;
   diagnostic.raw.javascriptAnalysis={analyzedJsCount:communicationTree.analyzedJsCount,analyzedCharacters:communicationTree.analyzedCharacters,extractedKeywords:communicationTree.extractedKeywords,keywordCounts:communicationTree.keywordCounts};
   var communication=detectMajsoulCommunication(analysis),fetchCandidates=uniqueMajsoulValues(analysis.fetch.concat(analysis.axios));
   // v4.6.2: REST API判定は雀魂側の外部レスポンスを実際に取得できた場合だけ確定する。
@@ -1497,6 +1501,7 @@ async function runMajsoulFetchDiagnostic(paipuId,originalUrl){
   var config=getMajsoulProviderConfig(),provider=MAJSOUL_PAIPU_PROVIDERS[config.active]||MAJSOUL_PAIPU_PROVIDERS.browser;
   // v4.8.0: UIから取得実装を分離し、将来はProviderの差し替えだけで中継APIへ移行できるようにする。
   var diagnostic=await provider.diagnose(paipuId,originalUrl,config);
+  ['inlineScriptAnalysis','unityConfig','dataUrl','frameworkUrl','codeUrl','streamingAssetsUrl'].forEach(function(key){if(!Object.prototype.hasOwnProperty.call(diagnostic,key))diagnostic[key]=null;});if(!Array.isArray(diagnostic.unityResourceFetchResults))diagnostic.unityResourceFetchResults=[];
   diagnostic.provider={key:provider.key,name:provider.name,implemented:provider.implemented};
   diagnostic.raw=diagnostic.raw||{};diagnostic.raw.provider=Object.assign({},diagnostic.raw.provider||{},diagnostic.provider,{config:config});
   if(provider.key==='browser')diagnostic.steps.splice(1,0,{status:'ok',title:'現在使用中Provider',detail:'BrowserProvider（ブラウザ直接取得）'});
