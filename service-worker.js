@@ -1,6 +1,6 @@
-// v5.0.0: Worker中継Provider版を旧PWAキャッシュから分離するためキャッシュ世代を更新。
-const SERVICE_WORKER_VERSION = '5.0.0';
-const CACHE_NAME = 'mahjong-tools-v5.0.0';
+// v5.1.0: 正式Worker接続版を旧PWAキャッシュから分離するためキャッシュ世代を更新。
+const SERVICE_WORKER_VERSION = '5.1.0';
+const CACHE_NAME = 'mahjong-tools-v5.1.0';
 
 const ASSETS_TO_CACHE = [
   './',

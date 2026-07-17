@@ -1,51 +1,90 @@
 # 麻雀収支ツール
 
-GitHub Pagesで動作するPWAです。v5.0.0から雀魂牌譜の取得経路を、ブラウザ直接通信からCloudflare Workers中継APIへ移行しました。
+GitHub Pagesで動作するPWAです。v5.1.0では雀魂牌譜の通信経路としてCloudflare WorkersのProxyProviderを正式採用しています。牌譜本体の取得はv5.2.0で実装予定です。
 
-## ゆうひさんが行うCloudflare Workerのデプロイ手順
+## ゆうひさん向け：Cloudflare Workerのデプロイ手順
 
-1. [Cloudflare](https://dash.cloudflare.com/)で無料アカウントを作成し、ログインします。
-2. パソコンへNode.js 20以降をインストールします。すでに`node -v`でバージョンが表示される場合は不要です。
-3. ターミナルでこのプロジェクトの`worker`フォルダーへ移動します。
+### ① Cloudflareへログイン
 
-   ```bash
-   cd worker
-   ```
+1. [Cloudflare Dashboard](https://dash.cloudflare.com/)を開きます。
+2. 無料アカウントを作成するか、既存アカウントでログインします。
 
-4. Worker用ツールをインストールします。
+<!-- スクリーンショット撮影箇所①：Cloudflare Dashboardへログインした直後の画面 -->
 
-   ```bash
-   npm install
-   ```
+### ② Workerを作成する準備
 
-5. Cloudflareへログインします。ブラウザが開いたら内容を確認して許可します。
+1. Node.js 20以降をインストールします。`node -v`でバージョンが表示されれば準備済みです。
+2. ターミナルを開き、このプロジェクトの`worker`フォルダーへ移動します。
+3. Worker用ツールをインストールします。
+
+```bash
+cd worker
+npm install
+```
+
+Worker名、実行ファイル、許可Originは[worker/wrangler.jsonc](worker/wrangler.jsonc)へ設定済みです。利用者が外部URLを指定する機能はありません。
+
+### ③ Workerをデプロイ
+
+1. 初回だけCloudflare CLIへログインします。
 
    ```bash
    npx wrangler login
    ```
 
-6. Workerをデプロイします。
+2. ブラウザに表示されるCloudflareの確認画面で許可します。
+3. デプロイします。
 
    ```bash
    npm run deploy
    ```
 
-7. 表示された`https://mahjong-paipu-proxy.<サブドメイン>.workers.dev`をブラウザで開き、末尾へ`/health`を付けます。次のJSONが表示されれば成功です。
+<!-- スクリーンショット撮影箇所②：ターミナルに「Deployed」とworkers.dev URLが表示された画面 -->
 
-   ```json
-   {"ok":true,"service":"mahjong-paipu-proxy","version":"5.0.0"}
-   ```
+### ④ Worker URLを取得
 
-8. 麻雀収支ツールの「雀魂」タブを開き、「詳細設定・復元用」を展開します。
-9. 「取得Provider」で`ProxyProvider（Worker）`を選び、手順7のURLを「WorkerベースURL」へ入力します。`/health`は入力しません。
-10. 「Worker設定を保存」を押し、続いて「接続テスト」を押します。「Worker接続成功」と表示されれば設定完了です。
+デプロイ完了時に表示される次の形式のURLをコピーします。
 
-Cloudflare Workersの無料枠で動かせるよう、KV・D1・有料サービスは使用していません。v5.0.0の`/api/paipu`は接続基盤のみで、正常にWorkerへ到達するとHTTP 501と構造化JSONを返します。牌譜本体の取得とProtobufデコードは次バージョンで追加します。
+```text
+https://mahjong-paipu-proxy.<Cloudflareのサブドメイン>.workers.dev
+```
+
+末尾の`/health`や`/api/paipu`はコピーするURLへ含めません。
+
+### ⑤ GitHub Pagesへ設定
+
+1. 麻雀収支ツールの「雀魂」タブを開きます。
+2. 「詳細設定・復元用」を開きます。
+3. 「取得Provider」で「ProxyProvider（Worker）」を選びます。
+4. 「WorkerベースURL」へ手順④のURLを貼り付けます。
+5. 「Worker設定を保存」を押します。状態が「未接続」になります。
+
+<!-- スクリーンショット撮影箇所③：Worker URLを入力して「未接続」と表示された設定画面 -->
+
+### ⑥ Health Check
+
+1. 「接続テスト」を押します。
+2. 表示が「未接続 → 接続中 → 成功」と変わることを確認します。
+3. 次のHealth情報を確認します。
+   - Service: `mahjong-paipu-proxy`
+   - Version: `5.1.0`
+   - Response Time: 通信時間（ms）
+4. Worker URLへ`/health`を付けてブラウザで開くと、次のJSONも確認できます。
+
+```json
+{"ok":true,"service":"mahjong-paipu-proxy","version":"5.1.0"}
+```
+
+<!-- スクリーンショット撮影箇所④：緑色の「成功」とService・Version・Response Timeが表示された画面 -->
 
 ## API
 
-- `GET /health`: Worker稼働確認
-- `GET /api/paipu?id={完全な牌譜ID}`: 牌譜取得（v5.0.0では501）
-- `OPTIONS`: GitHub Pages向けCORSプリフライト
+- `GET /health`: Worker稼働確認（HTTP 200）
+- `GET /api/paipu?id={完全な牌譜ID}`: v5.1.0では構造化JSONとHTTP 501を返す
+- `OPTIONS`: GitHub Pages向けCORSプリフライト（HTTP 204）
 
-許可Originを変更する場合は[worker/wrangler.jsonc](worker/wrangler.jsonc)の`ALLOWED_ORIGIN`を変更して再デプロイしてください。Workerは利用者指定URLを受け取らず、牌譜IDだけを検証して処理します。
+Cloudflare Workersの無料枠を優先し、KV・D1・有料サービスは使用していません。許可Originを変更する場合は`worker/wrangler.jsonc`の`ALLOWED_ORIGIN`を変更して再デプロイしてください。
+
+## v5.2.0の実装入口
+
+牌譜取得先への通信とProtobuf解析は[worker/src/index.js](worker/src/index.js)の`fetchMajsoulPaipu()`へ追加します。API、CORS、タイムアウト、エラーフォーマットはそのまま利用できます。

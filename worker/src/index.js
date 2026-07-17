@@ -1,5 +1,5 @@
 const SERVICE_NAME = 'mahjong-paipu-proxy';
-const SERVICE_VERSION = '5.0.0';
+const SERVICE_VERSION = '5.1.0';
 const DEFAULT_ALLOWED_ORIGIN = 'https://8h4f6g6dgf-hub.github.io';
 const REQUEST_TIMEOUT_MS = 10000;
 
