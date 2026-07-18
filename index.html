@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="麻雀収支">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
-<title>麻雀収支ツール v5.1.0</title>
+<title>麻雀収支ツール v5.2.0</title>
 <style>
 *{box-sizing:border-box}
 :root{--bg:#f5f6f8;--card:#fff;--text:#1f2933;--muted:#6b7280;--border:#e5e7eb;--soft:#f8fafc;--primary:#0f5132;--primary-dark:#0b3d25;--secondary:#eef2f7;--danger-bg:#fee2e2;--danger-text:#b91c1c;--plus:#0a7a32;--minus:#c33131;--shadow:0 8px 24px rgba(15,23,42,.06)}
@@ -497,10 +497,10 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v5.1.0</span></h1>
-    <p id="appSubTitle" class="sub">v5.1.0：Cloudflare Worker正式接続に対応しました。</p>
+    <h1>麻雀収支ツール <span id="appVersionBadge" class="release">v5.2.0</span></h1>
+    <p id="appSubTitle" class="sub">v5.2.0：Workerから雀魂レスポンス取得に対応しました。</p>
   </div>
-  <div id="status" class="status">JS起動OK：v5.1.0</div>
+  <div id="status" class="status">JS起動OK：v5.2.0</div>
 
 
   <div class="tabs">
@@ -710,8 +710,8 @@ details.enhanced-details:not([open]) .details-content{height:0;opacity:0;transfo
 <script>
 var HISTORY_KEY='mahjong_tool_history_v120';
 
-// v5.1.0: 正式Worker接続版のビルド情報を診断へ渡し、旧設定は互換読込する。
-var APP_CONFIG={name:'麻雀収支ツール',version:'5.1.0',build:'510',buildId:'20260718-0544',buildTime:'2026-07-18T05:44:08+09:00',commit:'取得不可',serviceWorkerVersion:'5.1.0',cacheName:'mahjong-tools-v5.1.0',environment:'GitHub Pages',majsoulProvider:{active:'proxy',proxyBaseUrl:'https://mahjong-paipu-proxy.mahjong-paihu.workers.dev',proxyEndpoint:'/api/paipu'}};
+// v5.2.0: Worker実取得版のビルド情報を診断へ渡し、旧設定は互換読込する。
+var APP_CONFIG={name:'麻雀収支ツール',version:'5.2.0',build:'520',buildId:'20260718-1309',buildTime:'2026-07-18T13:09:40+09:00',commit:'取得不可',serviceWorkerVersion:'5.2.0',cacheName:'mahjong-tools-v5.2.0',environment:'GitHub Pages',majsoulProvider:{active:'proxy',proxyBaseUrl:'https://mahjong-paipu-proxy.mahjong-paihu.workers.dev',proxyEndpoint:'/api/paipu'}};
 var MAJSOUL_PROVIDER_SETTINGS_KEY='mahjong_majsoul_provider_v500';
 var MAJSOUL_SW_RETRY_KEY='majsoul_sw_bypass_retry_v463';
 var MAJSOUL_SW_RETRY_URL_KEY='majsoul_sw_bypass_url_v463';
@@ -966,7 +966,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   // v4.6.3: 登録解除後の再診断中だけ再登録を止め、次回通常表示では従来どおりPWAを復帰する。
   try{if(sessionStorage.getItem(MAJSOUL_SW_RETRY_KEY)==='1')return;}catch(e){}
   // v4.8.2: 旧index.htmlのHTTPキャッシュに影響されず、Service Worker本体の更新確認を必ず行う。
-  navigator.serviceWorker.register('./service-worker.js?v=510',{updateViaCache:'none'}).then(function(registration){return registration.update();}).catch(function(){});
+  navigator.serviceWorker.register('./service-worker.js?v=520',{updateViaCache:'none'}).then(function(registration){return registration.update();}).catch(function(){});
 })}
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -1407,7 +1407,7 @@ async function collectMajsoulBuildInformation(){
   try{var swResponse=await fetch('./service-worker.js?build='+Date.now(),{cache:'no-store'});if(swResponse.ok)serviceWorkerText=await swResponse.text();}catch(e){}
   var versionMatch=serviceWorkerText.match(/SERVICE_WORKER_VERSION\s*=\s*['\"]([^'\"]+)/),cacheMatch=serviceWorkerText.match(/CACHE_NAME\s*=\s*['\"]([^'\"]+)/);
   if(versionMatch)serviceWorkerVersion=versionMatch[1];if(cacheMatch)cacheName=cacheMatch[1];
-  var build={version:'5.1.0',buildId:APP_CONFIG.buildId||'取得不可',buildTime:APP_CONFIG.buildTime||'取得不可',commit:APP_CONFIG.commit||'取得不可',appConfigVersion:APP_CONFIG.version||'取得不可',appJsonVersion:appJson.version||'取得不可',serviceWorkerVersion:serviceWorkerVersion,cacheName:cacheName,environment:'GitHub Pages'};
+  var build={version:'5.2.0',buildId:APP_CONFIG.buildId||'取得不可',buildTime:APP_CONFIG.buildTime||'取得不可',commit:APP_CONFIG.commit||'取得不可',appConfigVersion:APP_CONFIG.version||'取得不可',appJsonVersion:appJson.version||'取得不可',serviceWorkerVersion:serviceWorkerVersion,cacheName:cacheName,environment:'GitHub Pages'};
   var expectedCache='mahjong-tools-v'+build.version;
   build.mismatches=[];if(build.appConfigVersion!==build.version)build.mismatches.push('APP_CONFIG.version');if(build.appJsonVersion!==build.version)build.mismatches.push('app.json.version');if(build.serviceWorkerVersion!==build.version)build.mismatches.push('Service Worker Version');if(build.cacheName!==expectedCache)build.mismatches.push('Cache Name');
   return build;
@@ -1425,7 +1425,7 @@ function copyMajsoulBuildInformation(){
 async function runBrowserProviderDiagnostic(paipuId,originalUrl){
   var swState=await getMajsoulServiceWorkerState();
   var buildInformation=await collectMajsoulBuildInformation();
-  var diagnostic={version:'5.1.0',build:buildInformation,testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{build:buildInformation,serviceWorker:swState}};
+  var diagnostic={version:'5.2.0',build:buildInformation,testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId}],attempts:[],raw:{build:buildInformation,serviceWorker:swState}};
   diagnostic.steps.push({status:swState.controller?'warn':'ok',title:'Service Worker状態',detail:swState.registrationState+' ／ controller: '+(swState.controller?'あり':'なし')+(swState.controllerScriptURL?' ／ '+swState.controllerScriptURL:'')});
   diagnostic.steps.push({status:'ok',title:'Cache状態',detail:swState.cacheState+(swState.cacheKeys.length?' ／ '+swState.cacheKeys.join(', '):'')});
   diagnostic.steps.push({status:'ok',title:'診断fetch設定',detail:'mode: '+swState.fetchMode+' ／ credentials: '+swState.fetchCredentials+' ／ cache: '+swState.fetchCache+' ／ redirect: '+swState.fetchRedirect});
@@ -1518,7 +1518,13 @@ var MAJSOUL_PROXY_RESPONSE_SCHEMA={
   version:1,
   source:'majsoul',
   paipuId:'string',
-  payloadType:'raw | json | protobuf',
+  sourceUrl:'string',
+  httpStatus:'number',
+  contentType:'string',
+  size:'number',
+  durationMs:'number',
+  payloadType:'html | json | binary | protobuf | text',
+  payloadEncoding:'utf-8 | json | base64',
   payload:'object | string | null'
 };
 function readMajsoulProviderSettings(){try{return JSON.parse(localStorage.getItem(MAJSOUL_PROVIDER_SETTINGS_KEY)||'{}')||{};}catch(e){return {};}}
@@ -1546,7 +1552,7 @@ async function fetchMajsoulWorkerJson(url,timeoutMs){
 }
 async function testMajsoulWorkerHealth(){
   var input=document.getElementById('majsoulWorkerBaseUrl'),baseUrl,started=performance.now();
-  try{baseUrl=normalizeMajsoulWorkerBaseUrl(input&&input.value);if(!baseUrl)throw new Error('WorkerベースURLを入力してください');renderMajsoulWorkerHealth('',null,null);setMajsoulWorkerStatus('接続中','');var result=await fetchMajsoulWorkerJson(baseUrl+'/health',8000),elapsed=Math.round(performance.now()-started);if(!result.response.ok||!result.body.ok)throw new Error(result.body&&result.body.error&&result.body.error.message||'HTTP '+result.response.status);if(result.body.service!=='mahjong-paipu-proxy')throw new Error('Service名が一致しません');if(result.body.version!=='5.1.0')throw new Error('Worker Version不一致：'+result.body.version);renderMajsoulWorkerHealth(result.body.service,result.body.version,elapsed);setMajsoulWorkerStatus('成功','success');}catch(e){renderMajsoulWorkerHealth('',null,null);setMajsoulWorkerStatus('失敗：'+(e.name==='AbortError'?'タイムアウト':e.message),'error');}
+  try{baseUrl=normalizeMajsoulWorkerBaseUrl(input&&input.value);if(!baseUrl)throw new Error('WorkerベースURLを入力してください');renderMajsoulWorkerHealth('',null,null);setMajsoulWorkerStatus('接続中','');var result=await fetchMajsoulWorkerJson(baseUrl+'/health',8000),elapsed=Math.round(performance.now()-started);if(!result.response.ok||!result.body.ok)throw new Error(result.body&&result.body.error&&result.body.error.message||'HTTP '+result.response.status);if(result.body.service!=='mahjong-paipu-proxy')throw new Error('Service名が一致しません');if(result.body.version!=='5.2.0')throw new Error('Worker Version不一致：'+result.body.version);renderMajsoulWorkerHealth(result.body.service,result.body.version,elapsed);setMajsoulWorkerStatus('成功','success');}catch(e){renderMajsoulWorkerHealth('',null,null);setMajsoulWorkerStatus('失敗：'+(e.name==='AbortError'?'タイムアウト':e.message),'error');}
 }
 function getMajsoulProviderConfig(){
   var defaults=APP_CONFIG&&APP_CONFIG.majsoulProvider||{},saved=readMajsoulProviderSettings(),configured=Object.assign({},defaults,saved);
@@ -1560,18 +1566,20 @@ function buildMajsoulProxyRequestUrl(paipuId,config){
 }
 async function runProxyProviderDiagnostic(paipuId,originalUrl,config){
   var requestUrl=buildMajsoulProxyRequestUrl(paipuId,config);
-  var buildInformation=await collectMajsoulBuildInformation(),diagnostic={version:'5.1.0',build:buildInformation,testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,provider:{key:'proxy',name:'ProxyProvider',implemented:true},steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId},{status:'ok',title:'現在使用中Provider',detail:'ProxyProvider（Cloudflare Worker）'}],attempts:[],raw:{build:buildInformation,provider:{key:'proxy',name:'ProxyProvider',implemented:true,request:{method:'GET',url:requestUrl,apiFormat:'GET {workerBaseUrl}/api/paipu?id={完全な牌譜ID}'},expectedResponse:MAJSOUL_PROXY_RESPONSE_SCHEMA,originalUrl:originalUrl}}};
+  var buildInformation=await collectMajsoulBuildInformation(),diagnostic={version:'5.2.0',build:buildInformation,testedAt:new Date().toISOString(),pageOrigin:location.origin,paipuId:paipuId,provider:{key:'proxy',name:'ProxyProvider',implemented:true},steps:[{status:'ok',title:'牌譜ID抽出',detail:paipuId},{status:'ok',title:'現在使用中Provider',detail:'ProxyProvider（Cloudflare Worker）'}],attempts:[],raw:{build:buildInformation,provider:{key:'proxy',name:'ProxyProvider',implemented:true,request:{method:'GET',url:requestUrl,apiFormat:'GET {workerBaseUrl}/api/paipu?id={完全な牌譜ID}'},expectedResponse:MAJSOUL_PROXY_RESPONSE_SCHEMA,originalUrl:originalUrl}}};
   if(!config.proxyBaseUrl){diagnostic.steps.push({status:'ng',title:'Worker設定',detail:'WorkerベースURLが未登録です'});diagnostic.summary='WorkerベースURLを詳細設定で登録してください。';diagnostic.level='error';return diagnostic;}
   setMajsoulUrlStatus('Worker接続中…','');
-  try{var healthStarted=performance.now(),health=await fetchMajsoulWorkerJson(config.proxyBaseUrl+'/health',8000),healthElapsed=Math.round(performance.now()-healthStarted);diagnostic.raw.health={service:health.body.service,version:health.body.version,responseTimeMs:healthElapsed,response:health.body};if(!health.response.ok||!health.body.ok)throw new Error('health check HTTP '+health.response.status);if(health.body.service!=='mahjong-paipu-proxy'||health.body.version!=='5.1.0')throw new Error('Worker情報がv5.1.0と一致しません');diagnostic.steps.push({status:'ok',title:'Worker health check',detail:'Service: '+health.body.service+' ／ Version: '+health.body.version+' ／ Response Time: '+healthElapsed+' ms'});setMajsoulUrlStatus('Worker接続成功','success');}
+  try{var healthStarted=performance.now(),health=await fetchMajsoulWorkerJson(config.proxyBaseUrl+'/health',8000),healthElapsed=Math.round(performance.now()-healthStarted);diagnostic.raw.health={service:health.body.service,version:health.body.version,responseTimeMs:healthElapsed,response:health.body};if(!health.response.ok||!health.body.ok)throw new Error('health check HTTP '+health.response.status);if(health.body.service!=='mahjong-paipu-proxy'||health.body.version!=='5.2.0')throw new Error('Worker情報がv5.2.0と一致しません');diagnostic.steps.push({status:'ok',title:'Worker health check',detail:'Service: '+health.body.service+' ／ Version: '+health.body.version+' ／ Response Time: '+healthElapsed+' ms'});setMajsoulUrlStatus('Worker接続成功','success');}
   catch(healthError){diagnostic.steps.push({status:'ng',title:'Worker health check',detail:healthError.name==='AbortError'?'タイムアウト':healthError.message});diagnostic.summary='Workerへの接続に失敗しました。';diagnostic.level='error';setMajsoulUrlStatus('取得失敗：Workerへ接続できません','error');return diagnostic;}
   setMajsoulUrlStatus('牌譜取得中…','');
   try{
-    var result=await fetchMajsoulWorkerJson(requestUrl,12000),body=result.body;diagnostic.raw.workerResponse=body;diagnostic.attempts.push({requestedUrl:requestUrl,httpStatus:result.response.status,ok:result.response.ok,response:body});
-    if(!result.response.ok||!body.ok){var workerError=body&&body.error||{};diagnostic.steps.push({status:result.response.status===501?'warn':'ng',title:'牌譜取得',detail:'HTTP '+result.response.status+' / '+(workerError.code||'WORKER_ERROR')+' / '+(workerError.message||'取得失敗')});diagnostic.summary=result.response.status===501?'Worker接続は成功しました。牌譜本体の取得は次バージョンで実装します。':'Worker経由の牌譜取得に失敗しました。';diagnostic.level=result.response.status===501?'warning':'error';setMajsoulUrlStatus('取得失敗：'+(workerError.message||'Workerエラー'),result.response.status===501?'':'error');return diagnostic;}
-    diagnostic.steps.push({status:'ok',title:'牌譜取得',detail:'取得成功 / payloadType: '+body.payloadType});
-    if(body.payloadType==='json'&&body.payload!=null){var internal=convertFetchedPayloadToInternalJson(body.payload,paipuId);loadSanmaJson(internal);diagnostic.steps.push({status:'ok',title:'内部JSON変換',detail:'既存の内部JSON変換へ接続しました'});}
-    diagnostic.summary='Worker経由で牌譜を取得しました。';diagnostic.level='success';setMajsoulUrlStatus('取得成功','success');return diagnostic;
+    var result=await fetchMajsoulWorkerJson(requestUrl,25000),body=result.body;diagnostic.raw.workerResponse=body;diagnostic.attempts.push({requestedUrl:requestUrl,httpStatus:result.response.status,ok:result.response.ok,sourceUrl:body.sourceUrl||null,payloadType:body.payloadType||null,size:body.size||0,durationMs:body.durationMs||null,response:body});
+    if(!result.response.ok||!body.ok){var workerError=body&&body.error||{};diagnostic.steps.push({status:'ng',title:'牌譜取得',detail:'HTTP '+result.response.status+' / '+(workerError.code||'WORKER_ERROR')+' / '+(workerError.message||'取得失敗')});diagnostic.summary='Worker経由の牌譜取得に失敗しました。';diagnostic.level='error';setMajsoulUrlStatus('取得失敗：'+(workerError.message||'Workerエラー'),'error');return diagnostic;}
+    diagnostic.upstream={sourceUrl:body.sourceUrl,httpStatus:body.httpStatus,contentType:body.contentType,payloadType:body.payloadType,size:body.size,durationMs:body.durationMs};diagnostic.raw.upstream=diagnostic.upstream;
+    diagnostic.steps.push({status:'ok',title:'雀魂レスポンス取得',detail:'取得元URL: '+body.sourceUrl+' ／ HTTP Status: '+body.httpStatus+' ／ Content-Type: '+body.contentType+' ／ Payload Type: '+body.payloadType+' ／ Payload Size: '+body.size+' bytes ／ 取得時間: '+body.durationMs+' ms'});
+    if(body.payloadType==='json'&&body.payload!=null){try{var internal=convertFetchedPayloadToInternalJson(body.payload,paipuId);loadSanmaJson(internal);diagnostic.steps.push({status:'ok',title:'内部JSON変換',detail:'既存の内部JSON変換へ接続しました'});}catch(parseError){diagnostic.steps.push({status:'warn',title:'内部JSON変換',detail:'取得成功、内部形式への変換は未対応：'+parseError.message});}}
+    else diagnostic.steps.push({status:'warn',title:'牌譜デコード',detail:body.payloadType==='protobuf'?'Protobuf候補を取得しました。デコードは次バージョンです。':'取得した'+body.payloadType+'のデコードは未実装です。'});
+    diagnostic.summary='Workerが雀魂から'+body.payloadType+'レスポンスを取得しました。';diagnostic.level='success';setMajsoulUrlStatus('取得成功','success');return diagnostic;
   }catch(error){diagnostic.steps.push({status:'ng',title:'牌譜取得',detail:error.name==='AbortError'?'タイムアウト':error.message});diagnostic.summary='Worker経由の牌譜取得に失敗しました。';diagnostic.level='error';setMajsoulUrlStatus('取得失敗','error');return diagnostic;}
 }
 var MAJSOUL_PAIPU_PROVIDERS={

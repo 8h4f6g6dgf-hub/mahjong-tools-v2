@@ -1,6 +1,6 @@
 # 麻雀収支ツール
 
-GitHub Pagesで動作するPWAです。v5.1.0では雀魂牌譜の通信経路としてCloudflare WorkersのProxyProviderを正式採用しています。牌譜本体の取得はv5.2.0で実装予定です。
+GitHub Pagesで動作するPWAです。v5.2.0ではCloudflare Workersから雀魂の固定取得先へ通信し、HTML・JSON・Binary・Protobuf候補を判定して返します。Protobufのデコードは次バージョンで実装予定です。
 
 デプロイ済みWorker：`https://mahjong-paipu-proxy.mahjong-paihu.workers.dev`
 
@@ -69,12 +69,12 @@ https://mahjong-paipu-proxy.<Cloudflareのサブドメイン>.workers.dev
 2. 表示が「未接続 → 接続中 → 成功」と変わることを確認します。
 3. 次のHealth情報を確認します。
    - Service: `mahjong-paipu-proxy`
-   - Version: `5.1.0`
+   - Version: `5.2.0`
    - Response Time: 通信時間（ms）
 4. Worker URLへ`/health`を付けてブラウザで開くと、次のJSONも確認できます。
 
 ```json
-{"ok":true,"service":"mahjong-paipu-proxy","version":"5.1.0"}
+{"ok":true,"service":"mahjong-paipu-proxy","version":"5.2.0"}
 ```
 
 <!-- スクリーンショット撮影箇所④：緑色の「成功」とService・Version・Response Timeが表示された画面 -->
@@ -82,11 +82,13 @@ https://mahjong-paipu-proxy.<Cloudflareのサブドメイン>.workers.dev
 ## API
 
 - `GET /health`: Worker稼働確認（HTTP 200）
-- `GET /api/paipu?id={完全な牌譜ID}`: v5.1.0では構造化JSONとHTTP 501を返す
+- `GET /api/paipu?id={完全な牌譜ID}`: 雀魂の固定候補へ通信し、統一形式のJSONを返す
 - `OPTIONS`: GitHub Pages向けCORSプリフライト（HTTP 204）
 
 Cloudflare Workersの無料枠を優先し、KV・D1・有料サービスは使用していません。許可Originを変更する場合は`worker/wrangler.jsonc`の`ALLOWED_ORIGIN`を変更して再デプロイしてください。
 
-## v5.2.0の実装入口
+成功レスポンスには`sourceUrl`、`httpStatus`、`contentType`、`payloadType`、`size`、`durationMs`、`payload`が含まれます。バイナリとProtobuf候補の`payload`はBase64です。利用者が任意の外部URLを取得させることはできません。
 
-牌譜取得先への通信とProtobuf解析は[worker/src/index.js](worker/src/index.js)の`fetchMajsoulPaipu()`へ追加します。API、CORS、タイムアウト、エラーフォーマットはそのまま利用できます。
+## 次バージョンの実装入口
+
+Protobufデコードは[worker/src/index.js](worker/src/index.js)の形式判定後へ追加します。API、CORS、タイムアウト、エラーフォーマットはそのまま利用できます。
