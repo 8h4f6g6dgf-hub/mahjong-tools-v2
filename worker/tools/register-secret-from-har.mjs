@@ -67,13 +67,25 @@ for (const entry of har?.log?.entries || []) {
           const prepareLoginToken = Buffer.from(body.get(1)?.[0] || []).toString('utf8'), providerType = body.get(2)?.[0];
           if (prepareLoginToken && Number.isInteger(providerType)) prepareLogin = { prepareLoginToken, providerType };
         }
-        if (method === '.lq.Lobby.fetchGameRecord' && connection && sharedId) {
+        if (method === '.lq.Lobby.fetchGameRecord' && connection) {
           const envelopeShape = fieldShape(bytes.subarray(3)), bodyBytes = envelope.get(2)?.[0] || Buffer.alloc(0), requestShape = fieldShape(bodyBytes);
+          const versionBytes = Buffer.from(connection.clientVersionString, 'utf8');
+          const versionFieldIndexes = requestShape
+            .map((item, index) => item.wire === 2 && Buffer.from(item.value || []).equals(versionBytes) ? index : -1)
+            .filter((index) => index >= 0);
+          // v5.3.5: 共有URL再読込でロビーへ戻る現行挙動に対応するため、Document URLを必須にしない。
+          // 実HARでclientVersionStringと一致する1フィールドを確定し、残る唯一のlength-delimited値を牌譜ID入力として扱う（値は保存・表示しない）。
+          const remainingLengthFieldIndexes = requestShape
+            .map((item, index) => item.wire === 2 && !versionFieldIndexes.includes(index) ? index : -1)
+            .filter((index) => index >= 0);
           const requestFields = requestShape.map((item) => {
             if (item.wire !== 2) return { field: item.field, wire: item.wire, source: 'unsupported' };
             const value = Buffer.from(item.value || []);
-            if (value.equals(Buffer.from(sharedId, 'utf8'))) return { field: item.field, wire: item.wire, source: 'completePaipuId' };
-            if (value.equals(Buffer.from(connection.clientVersionString, 'utf8'))) return { field: item.field, wire: item.wire, source: 'clientVersionString' };
+            if (sharedId && value.equals(Buffer.from(sharedId, 'utf8'))) return { field: item.field, wire: item.wire, source: 'completePaipuId' };
+            if (value.equals(versionBytes)) return { field: item.field, wire: item.wire, source: 'clientVersionString' };
+            if (!sharedId && versionFieldIndexes.length === 1 && remainingLengthFieldIndexes.length === 1 && remainingLengthFieldIndexes[0] === requestShape.indexOf(item)) {
+              return { field: item.field, wire: item.wire, source: 'completePaipuId' };
+            }
             return { field: item.field, wire: item.wire, source: 'unconfirmed' };
           });
           const envelopeFields = envelopeShape.map((item) => ({ field: item.field, wire: item.wire }));
@@ -85,7 +97,7 @@ for (const entry of har?.log?.entries || []) {
   }
 }
 if (!connection || !prepareLogin || !fetchGameRecordProfile?.validated) {
-  console.error('現行requestConnection/prepareLogin/fetchGameRecordを完全検証できませんでした。共有URLのDocumentとgateway通信を含むHARをコピーしてください。');
+  console.error('現行requestConnection/prepareLogin/fetchGameRecordを完全検証できませんでした。牌譜表示操作を含むgateway通信のHARをコピーしてください。');
   process.exit(2);
 }
 let credential = { flowVersion: 'route-prepare-login-v1', ...connection, ...prepareLogin, fetchGameRecordProfile };
