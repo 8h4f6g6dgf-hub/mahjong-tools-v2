@@ -76,7 +76,7 @@ for (const entry of har?.log?.entries || []) {
         if (bytes[0] === 2 && message.type === 'send') {
           const rpc = text(first(envelope, 1)); if (!/^\.lq\./.test(rpc)) continue;
           const body = fields(first(envelope, 2) || Buffer.alloc(0));
-          const item = { order: ++order, rpc, inputFields: safeShape(body, true), outputFields: [], responseReceived: false };
+          const item = { order: ++order, rpc, envelopeFields: safeShape(envelope, false).map(({ field, wireType }) => ({ field, wireType })), inputFields: safeShape(body, true), outputFields: [], responseReceived: false };
           timeline.push(item); pending.set(requestId, item); break;
         }
         if (bytes[0] === 3 && message.type === 'receive' && pending.has(requestId)) {
@@ -92,6 +92,14 @@ const sequence = timeline.map((item) => item.rpc);
 const recordCandidates = timeline.filter((item) => /(record|paipu|game|resolve|lookup)/i.test(item.rpc));
 const fetchItem = timeline.find((item) => item.rpc === '.lq.Lobby.fetchGameRecord');
 const fetchIdField = fetchItem?.inputFields.find((item) => item.inputType === 'completePaipuId' || item.inputType === 'paipuUuid');
+const connectionItem = timeline.find((item) => item.rpc === '.lq.Route.requestConnection');
+const actualEnvelopeShape = (fetchItem?.envelopeFields || []).map((item) => `${item.field}:${item.wireType}`).join(','), expectedEnvelopeShape = '1:length-delimited,2:length-delimited';
+const actualFieldShape = (fetchItem?.inputFields || []).map((item) => `${item.field}:${item.wireType}`).join(','), expectedFieldShape = '1:length-delimited,2:length-delimited';
+const fetchVersionRef = fetchItem?.inputFields.find((item) => item.field === 2)?.valueRef, connectionVersionRef = connectionItem?.inputFields.find((item) => item.field === 3)?.valueRef;
+const messageMatchScore = fetchItem?.rpc === '.lq.Lobby.fetchGameRecord' ? 100 : 0;
+const envelopeMatchScore = actualEnvelopeShape === expectedEnvelopeShape ? 100 : 0;
+const fieldMatchScore = actualFieldShape === expectedFieldShape && fetchIdField?.inputType === 'completePaipuId' && fetchVersionRef && fetchVersionRef === connectionVersionRef ? 100 : 0;
+const requestMatchScore = Math.round((messageMatchScore + envelopeMatchScore + fieldMatchScore) / 3);
 const safe = {
   evidence: 'current Chrome sanitized HAR',
   sharedUrlPaipuIdDetected: Boolean(sharedId),
@@ -103,6 +111,14 @@ const safe = {
   fetchGameRecordReached: Boolean(fetchItem),
   fetchGameRecordInputType: fetchIdField?.inputType || 'unconfirmed',
   fetchGameRecordInputSource: fetchIdField?.inputSource || 'unconfirmed',
+  requestMatchScore,
+  envelopeMatchScore,
+  fieldMatchScore,
+  messageMatchScore,
+  requestFullyMatched: requestMatchScore === 100,
+  responseFullyMatched: Boolean(fetchItem?.responseReceived),
+  harCompared: Boolean(fetchItem),
+  fetchGameRecordRequestValidated: requestMatchScore === 100,
   nextRpc: fetchItem ? sequence[sequence.indexOf(fetchItem.rpc) + 1] || null : null
 };
 if (process.argv.includes('--focus')) {
@@ -119,6 +135,14 @@ if (process.argv.includes('--focus')) {
     fetchGameRecordReached: safe.fetchGameRecordReached,
     fetchGameRecordInputType: safe.fetchGameRecordInputType,
     fetchGameRecordInputSource: safe.fetchGameRecordInputSource,
+    requestMatchScore: safe.requestMatchScore,
+    envelopeMatchScore: safe.envelopeMatchScore,
+    fieldMatchScore: safe.fieldMatchScore,
+    messageMatchScore: safe.messageMatchScore,
+    requestFullyMatched: safe.requestFullyMatched,
+    responseFullyMatched: safe.responseFullyMatched,
+    harCompared: safe.harCompared,
+    fetchGameRecordRequestValidated: safe.fetchGameRecordRequestValidated,
     nextRpc: safe.nextRpc
   }, null, 2));
 } else console.log(JSON.stringify(safe, null, 2));
