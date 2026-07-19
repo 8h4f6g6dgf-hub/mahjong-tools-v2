@@ -414,7 +414,7 @@ export default {
     try {
       if (request.method === 'OPTIONS') { if (origin && origin !== allowedOrigin) return errorResponse(request, env, 403, 'ORIGIN_NOT_ALLOWED', '許可されていないOriginです'); return new Response(null, { status: 204, headers: corsHeaders(request, env) }); }
       if (request.method !== 'GET') return errorResponse(request, env, 405, 'METHOD_NOT_ALLOWED', 'GETのみ利用できます');
-      if (url.pathname === '/health') return jsonResponse(request, env, { ok: true, service: SERVICE_NAME, version: SERVICE_VERSION, authStage: env && env[AUTH_SECRET_NAME] ? 'SECRET_LOADED' : 'SECRET_LOADING', authState: env && env[AUTH_SECRET_NAME] ? 'SECRET_CONFIGURED' : AUTH_STATES.SECRET_NOT_CONFIGURED, secretConfigured: Boolean(env && env[AUTH_SECRET_NAME]) });
+      if (url.pathname === '/health') return jsonResponse(request, env, { ok: true, service: SERVICE_NAME, version: SERVICE_VERSION, authStage: env && env[AUTH_SECRET_NAME] ? 'SECRET_LOADED' : 'SECRET_LOADING', authState: env && env[AUTH_SECRET_NAME] ? null : AUTH_STATES.SECRET_NOT_CONFIGURED, secretConfigured: Boolean(env && env[AUTH_SECRET_NAME]), safeErrorCode: null, nextAction: env && env[AUTH_SECRET_NAME] ? '共有URLでOAuth認証診断を実行してください' : 'Worker Secretを登録してください' });
       if (url.pathname === '/api/paipu') return handlePaipu(request, env, url);
       return errorResponse(request, env, 404, 'NOT_FOUND', 'エンドポイントが見つかりません');
     } catch (_) { return errorResponse(request, env, 500, 'INTERNAL_ERROR', 'Worker内部でエラーが発生しました'); }
