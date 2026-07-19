@@ -1,6 +1,6 @@
-// v5.3.3: 現行牌譜画面RPCシーケンス版を旧PWAキャッシュから分離するため更新。
-const SERVICE_WORKER_VERSION = '5.3.3';
-const CACHE_NAME = 'mahjong-tools-v5.3.3';
+// v5.3.4: RPC応答Envelope診断版を旧PWAキャッシュから分離するため更新。
+const SERVICE_WORKER_VERSION = '5.3.4';
+const CACHE_NAME = 'mahjong-tools-v5.3.4';
 
 const ASSETS_TO_CACHE = [
   './',

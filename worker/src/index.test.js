@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import worker, { buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, extractPaipuId, extractUnityConfig, parseAuthSecret, parseRpcResponse } from './index.js';
+import worker, { buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, classifyRpcFailure, extractPaipuId, extractUnityConfig, inspectRpcFrame, parseAuthSecret, parseRpcResponse } from './index.js';
 
 function field(id, value) {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
   return [(id << 3) | 2, bytes.length, ...bytes];
 }
+
+function varintField(id, value) { return [(id << 3), value]; }
 
 test('共有URLから完全な牌譜IDを保持する', () => {
   assert.equal(extractPaipuId('https://game.mahjongsoul.com/?paipu=240101-test_abc'), '240101-test_abc');
@@ -52,6 +54,31 @@ test('現行牌譜画面の後続RPCへ実通信と同じ入力型を渡す', ()
   assert.match(read, /current-web-version/);
   assert.match(detail, /\.lq\.Lobby\.fetchGameRecordsDetailV2/);
   assert.match(detail, /240101-test_abc/);
+});
+
+test('readGameRecordの1004をOAuth拒否ではなく実際のRPC失敗へ分類する', () => {
+  const rpcError = new Uint8Array([...varintField(1, 1004 & 0x7f), ...field(2, 'safe rpc error')]);
+  // 1004は複数byte varintなので、実際の符号なしvarint表現へ置換する。
+  const encodedError = new Uint8Array([8, 0xec, 0x07, ...field(2, 'safe rpc error')]);
+  const body = new Uint8Array(field(1, encodedError));
+  const wrapper = new Uint8Array([...field(1, '.lq.Lobby.readGameRecord'), ...field(2, body)]);
+  const inspected = inspectRpcFrame(new Uint8Array([3, 4, 0, ...wrapper]), 4, '.lq.Lobby.readGameRecord');
+  const classified = classifyRpcFailure(inspected.meta.rpc, inspected.meta.rpcCode);
+  assert.equal(inspected.meta.rpcCode, 1004);
+  assert.equal(classified.state, 'READ_GAME_RECORD_FAILED');
+  assert.equal(classified.previous, 'OAUTH_REJECTED');
+  assert.equal(rpcError.length > 0, true);
+});
+
+test('詳細RPCのProtobuf EnvelopeからPayloadメタデータだけを安全に抽出する', () => {
+  const payload = new Uint8Array([8, 1, 18, 2, 3, 4]);
+  const body = new Uint8Array(field(2, payload));
+  const wrapper = new Uint8Array([...field(1, '.lq.Lobby.fetchGameRecordsDetailV2'), ...field(2, body)]);
+  const inspected = inspectRpcFrame(new Uint8Array([3, 5, 0, ...wrapper]), 5, '.lq.Lobby.fetchGameRecordsDetailV2');
+  assert.equal(inspected.meta.protobufEnvelopeParsed, true);
+  assert.equal(inspected.meta.payloadDetected, true);
+  assert.equal(inspected.meta.payloadSize, payload.length);
+  assert.deepEqual(inspected.meta.fieldNumbers, [2]);
 });
 
 test('healthはSecret値を返さず設定有無だけ返す', async () => {

@@ -1,5 +1,5 @@
 const SERVICE_NAME = 'mahjong-paipu-proxy';
-const SERVICE_VERSION = '5.3.3';
+const SERVICE_VERSION = '5.3.4';
 const DEFAULT_ALLOWED_ORIGIN = 'https://8h4f6g6dgf-hub.github.io';
 const REQUEST_TIMEOUT_MS = 30000;
 const MAX_PAYLOAD_BYTES = 6 * 1024 * 1024;
@@ -14,11 +14,14 @@ const AUTH_STATES = Object.freeze({
   OAUTH_TOKEN_EXPIRED: 'OAUTH_TOKEN_EXPIRED', CLIENT_VERSION_MISMATCH: 'CLIENT_VERSION_MISMATCH',
   SESSION_NOT_ESTABLISHED: 'SESSION_NOT_ESTABLISHED', SESSION_ESTABLISHMENT_FAILED: 'SESSION_ESTABLISHMENT_FAILED', AUTHENTICATED: 'AUTHENTICATED',
   FETCH_GAME_RECORD_REACHED: 'FETCH_GAME_RECORD_REACHED',
-  FETCH_GAME_RECORD_FAILED: 'FETCH_GAME_RECORD_FAILED', PAIPU_FETCH_SUCCEEDED: 'PAIPU_FETCH_SUCCEEDED'
+  AUTH_FAILED: 'AUTH_FAILED', SESSION_FAILED: 'SESSION_FAILED', FETCH_GAME_RECORD_FAILED: 'FETCH_GAME_RECORD_FAILED',
+  READ_GAME_RECORD_FAILED: 'READ_GAME_RECORD_FAILED', GAME_RECORD_DETAIL_FAILED: 'GAME_RECORD_DETAIL_FAILED',
+  RECORD_NOT_FOUND: 'RECORD_NOT_FOUND', PAYLOAD_EMPTY: 'PAYLOAD_EMPTY', PROTOBUF_ENVELOPE_PARSE_FAILED: 'PROTOBUF_ENVELOPE_PARSE_FAILED',
+  PROTOBUF_DECODE_FAILED: 'PROTOBUF_DECODE_FAILED', UNKNOWN_RPC_ERROR: 'UNKNOWN_RPC_ERROR', PAIPU_FETCH_SUCCEEDED: 'PAIPU_FETCH_SUCCEEDED'
 });
 
 function safeAuthDiagnostic(overrides = {}) {
-  return { authStage: 'SECRET_LOADING', authState: AUTH_STATES.SECRET_NOT_CONFIGURED, oauthRpcName: '.lq.Lobby.prepareLogin', oauthRequestBuilt: false, oauthResponseReceived: false, sessionEstablished: false, fetchGameRecordReached: false, rpcTimeline: [], rpcSequence: [], recordResolveReached: false, recordResolveSucceeded: false, resolvedRecordIdType: 'completePaipuId', resolvedRecordIdSource: 'sharedUrlPageState', resolvedRecordIdAvailable: true, fetchGameRecordInputType: 'completePaipuId', fetchGameRecordInputSource: 'sharedUrlPageState', nextRpc: '.lq.Route.requestConnection', confirmedRpcCount: 0, safeErrorCode: null, safeErrorMessage: null, nextAction: 'Worker Secretを登録してください', confirmedAuthFlowVersion: 'route-prepare-login-record-v2', confirmedSecretSchema: ['flowVersion', 'connectionType', 'clientVersionString', 'providerType', 'prepareLoginToken'], implementationEvidence: ['current Chrome sanitized HAR', '.lq.Route.requestConnection', '.lq.Lobby.prepareLogin', '.lq.Lobby.fetchGameRecord', '.lq.Lobby.readGameRecord', '.lq.Lobby.fetchGameRecordsDetailV2', 'jp-WebGL-release-4.0.11(12)'], ...overrides };
+  return { authStage: 'SECRET_LOADING', authState: AUTH_STATES.SECRET_NOT_CONFIGURED, oauthRpcName: '.lq.Lobby.prepareLogin', oauthRequestBuilt: false, oauthResponseReceived: false, sessionEstablished: false, fetchGameRecordReached: false, rpcTimeline: [], rpcSequence: [], currentRpc: null, recordResolveReached: false, recordResolveSucceeded: false, resolvedRecordIdType: 'completePaipuId', resolvedRecordIdSource: 'sharedUrlPageState', resolvedRecordIdAvailable: true, fetchGameRecordInputType: 'completePaipuId', fetchGameRecordInputSource: 'sharedUrlPageState', nextRpc: '.lq.Route.requestConnection', confirmedRpcCount: 0, readGameRecordReached: false, readGameRecordRequestSent: false, readGameRecordResponseReceived: false, readGameRecordSucceeded: false, readGameRecordRpcCode: null, readGameRecordResponseType: null, readGameRecordEnvelopeType: null, readGameRecordMessageType: null, readGameRecordPayloadDetected: false, readGameRecordPayloadSize: 0, readGameRecordErrorDetected: false, readGameRecordErrorCode: null, readGameRecordErrorMessage: null, readGameRecordNextInputType: 'completePaipuId', readGameRecordNextInputSource: 'sharedUrlPageState', fetchGameRecordsDetailReached: false, fetchGameRecordsDetailRequestSent: false, fetchGameRecordsDetailResponseReceived: false, fetchGameRecordsDetailSucceeded: false, fetchGameRecordsDetailRpcCode: null, fetchGameRecordsDetailResponseType: null, fetchGameRecordsDetailEnvelopeType: null, fetchGameRecordsDetailMessageType: null, fetchGameRecordsDetailPayloadDetected: false, fetchGameRecordsDetailPayloadSize: 0, fetchGameRecordsDetailErrorDetected: false, fetchGameRecordsDetailErrorCode: null, fetchGameRecordsDetailErrorMessage: null, protobufDetected: false, protobufEnvelopeParsed: false, envelopeType: null, messageType: null, payloadLength: 0, fieldNumbers: [], wireTypes: [], nestedPayloadDetected: false, compressionDetected: null, payloadEncoding: null, actualFailureStage: null, actualFailureRpc: null, actualFailureCode: null, actualFailureReason: null, classificationCorrected: false, previousClassification: null, currentClassification: null, safeErrorCode: null, safeErrorMessage: null, nextAction: 'Worker Secretを登録してください', confirmedAuthFlowVersion: 'route-prepare-login-record-v3', confirmedSecretSchema: ['flowVersion', 'connectionType', 'clientVersionString', 'providerType', 'prepareLoginToken'], implementationEvidence: ['current Chrome sanitized HAR', '.lq.Route.requestConnection', '.lq.Lobby.prepareLogin', '.lq.Lobby.fetchGameRecord', '.lq.Lobby.readGameRecord', '.lq.Lobby.fetchGameRecordsDetailV2', 'jp-WebGL-release-4.0.11(12)'], ...overrides };
 }
 
 function classifyOauthError(rpcError) {
@@ -345,36 +348,87 @@ function parseGenericRpcResponse(bytes, requestId) {
   return { method: decodeText(firstBytes(wrapper, 1)), body, fields, errorPresent: Boolean(errorBytes && errorBytes.length), error: errorBytes && errorBytes.length ? parseRpcError(errorBytes) : null };
 }
 
+function inspectWireFields(bytes) {
+  const result = []; let offset = 0;
+  while (offset < bytes.length) {
+    const tag = readVarint(bytes, offset); offset = tag.offset;
+    const field = tag.value >>> 3, wire = tag.value & 7; let value = null;
+    if (wire === 0) { const parsed = readVarint(bytes, offset); offset = parsed.offset; }
+    else if (wire === 1) offset += 8;
+    else if (wire === 2) { const length = readVarint(bytes, offset); offset = length.offset; value = bytes.slice(offset, offset + length.value); offset += length.value; }
+    else if (wire === 5) offset += 4;
+    else throw new Error('Unsupported protobuf wire type: ' + wire);
+    if (!field || offset > bytes.length) throw new Error('Invalid protobuf field');
+    result.push({ field, wire, value });
+  }
+  return result;
+}
+
+function inspectRpcFrame(bytes, requestId, expectedRpc) {
+  if (bytes.length < 4 || bytes[0] !== 3 || (bytes[1] | (bytes[2] << 8)) !== requestId) throw new Error('Unexpected Liqi response');
+  const wrapper = readProtobufFields(bytes.slice(3)), method = decodeText(firstBytes(wrapper, 1)) || expectedRpc, body = firstBytes(wrapper, 2) || new Uint8Array();
+  const wireFields = inspectWireFields(body), errorBytes = wireFields.find((item) => item.field === 1 && item.wire === 2)?.value || null;
+  const rpcError = errorBytes ? parseRpcError(errorBytes) : null;
+  const errorDetected = Boolean(rpcError && (Number.isInteger(rpcError.code) || rpcError.message));
+  let payload = null;
+  if (method === '.lq.Lobby.fetchGameRecord') {
+    try { payload = parseRpcResponse(bytes, requestId).data || null; } catch (_) {}
+  }
+  if (!payload) {
+    const candidates = wireFields.filter((item) => item.wire === 2 && !(item.field === 1 && errorDetected) && item.value && item.value.length);
+    if (candidates.length) payload = candidates.reduce((largest, item) => !largest || item.value.length > largest.length ? item.value : largest, null);
+  }
+  let nestedPayloadDetected = false;
+  if (payload && payload.length) { try { nestedPayloadDetected = readProtobufFields(payload).size > 0; } catch (_) {} }
+  const compressionDetected = payload && payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b ? 'gzip' : null;
+  const meta = { rpc: method, responseReceived: true, rpcCode: Number.isInteger(rpcError && rpcError.code) ? rpcError.code : 0, responseType: errorDetected ? 'rpc-error' : body.length ? 'protobuf' : 'empty', envelopeType: 'liqi-response', messageType: method + 'Response', envelopePresent: true, payloadDetected: Boolean(payload && payload.length), payloadSize: payload ? payload.length : 0, errorDetected, errorCode: Number.isInteger(rpcError && rpcError.code) ? rpcError.code : null, errorMessage: rpcError && rpcError.message || null, protobufDetected: Boolean(body.length), protobufEnvelopeParsed: true, fieldNumbers: wireFields.map((item) => item.field), wireTypes: wireFields.map((item) => item.wire), nestedPayloadDetected, compressionDetected, payloadEncoding: payload && payload.length ? 'base64' : null };
+  return { meta, payload };
+}
+
+function classifyRpcFailure(rpc, rpcCode) {
+  const safeCode = Number.isInteger(rpcCode) ? 'MAJSOUL_' + rpcCode : 'UNKNOWN_RPC_ERROR';
+  if (rpc === '.lq.Route.requestConnection' || rpc === '.lq.Lobby.prepareLogin') return { state: AUTH_STATES.AUTH_FAILED, stage: rpc === '.lq.Route.requestConnection' ? 'REQUEST_CONNECTION' : 'PREPARE_LOGIN', code: safeCode, reason: '認証またはセッション確立RPCがエラーを返しました', previous: 'OAUTH_REJECTED' };
+  if (rpc === '.lq.Lobby.fetchGameRecord') return { state: AUTH_STATES.FETCH_GAME_RECORD_FAILED, stage: 'FETCH_GAME_RECORD', code: safeCode, reason: 'fetchGameRecordがRPCエラーを返しました', previous: 'OAUTH_REJECTED' };
+  if (rpc === '.lq.Lobby.readGameRecord') return { state: AUTH_STATES.READ_GAME_RECORD_FAILED, stage: 'READ_GAME_RECORD', code: safeCode, reason: 'readGameRecordがRPCエラーを返しました', previous: 'OAUTH_REJECTED' };
+  if (rpc === '.lq.Lobby.fetchGameRecordsDetailV2') return { state: AUTH_STATES.GAME_RECORD_DETAIL_FAILED, stage: 'GAME_RECORD_DETAIL', code: safeCode, reason: 'fetchGameRecordsDetailV2がRPCエラーを返しました', previous: 'OAUTH_REJECTED' };
+  return { state: AUTH_STATES.UNKNOWN_RPC_ERROR, stage: 'UNKNOWN_RPC', code: safeCode, reason: '不明なRPCがエラーを返しました', previous: 'OAUTH_REJECTED' };
+}
+
 async function authenticatedFetchRecord(gatewayUrl, auth, paipuId, clientVersion) {
-  // v5.3.3: 共有URLから牌譜画面までの実通信5 RPCを同一Socketで再現する。
+  // v5.3.4: 各RPC応答を個別解析し、セッション確立後の失敗をOAuth拒否へ誤分類しない。
   let diagnostic = safeAuthDiagnostic({ authStage: 'OAUTH_REQUEST_BUILD', authState: AUTH_STATES.OAUTH_REQUEST_BUILD_FAILED, nextAction: 'Workerを再デプロイしてください' });
   let payloads;
   try { payloads = [buildRequestConnectionRequest(auth, 1), buildPrepareLoginRequest(auth, 2), buildRpcRequest(paipuId, clientVersion, 3), buildReadGameRecordRequest(clientVersion, 4), buildGameRecordsDetailRequest(paipuId, 5)]; }
   catch (_) { throw safeAuthError(AUTH_STATES.OAUTH_REQUEST_BUILD_FAILED, diagnostic, 500); }
   const sequence = ['.lq.Route.requestConnection', '.lq.Lobby.prepareLogin', '.lq.Lobby.fetchGameRecord', '.lq.Lobby.readGameRecord', '.lq.Lobby.fetchGameRecordsDetailV2'];
-  const timeline = sequence.map((rpc, index) => ({ order: index + 1, rpc, status: 'pending' }));
+  const timeline = sequence.map((rpc, index) => ({ order: index + 1, rpc, status: 'pending', requestSent: false, responseReceived: false, rpcCode: null, responseType: null, envelopePresent: false, payloadDetected: false, payloadSize: 0 }));
+  const inspections = []; let firstFailure = null;
   diagnostic = safeAuthDiagnostic({ authStage: 'CONNECTION_PREFLIGHT', authState: AUTH_STATES.OAUTH_RPC_SENT, oauthRpcName: '.lq.Route.requestConnection', oauthRequestBuilt: true, rpcTimeline: timeline, rpcSequence: sequence, nextRpc: sequence[0], confirmedRpcCount: sequence.length, nextAction: '現行認証応答を待っています' });
   const frames = await websocketRpcSequence(gatewayUrl, payloads, 25000, (bytes, index) => {
-    timeline[index] = { ...timeline[index], status: 'succeeded' };
-    const response = index === 2 ? null : parseGenericRpcResponse(bytes, index + 1);
-    diagnostic = safeAuthDiagnostic({ ...diagnostic, authStage: index === 0 ? 'REQUEST_CONNECTION_RESPONSE' : index === 1 ? 'PREPARE_LOGIN_RESPONSE' : index === 2 ? 'FETCH_GAME_RECORD_RESPONSE' : index === 3 ? 'READ_GAME_RECORD_RESPONSE' : 'GAME_RECORD_DETAIL_RESPONSE', authState: index < 2 ? AUTH_STATES.OAUTH_RESPONSE_RECEIVED : AUTH_STATES.FETCH_GAME_RECORD_REACHED, oauthRpcName: sequence[index], oauthRequestBuilt: true, oauthResponseReceived: true, sessionEstablished: index >= 1, fetchGameRecordReached: index >= 2, rpcTimeline: timeline, rpcSequence: sequence, nextRpc: sequence[index + 1] || null, confirmedRpcCount: sequence.length, nextAction: index < 4 ? '次の現行RPCを実行します' : '牌譜本体を検証します' });
-    if (index === 2) return;
-    if (response.errorPresent) {
-      const safe = classifyOauthError(response.error);
-      diagnostic = { ...diagnostic, authState: AUTH_STATES.OAUTH_REJECTED, safeErrorCode: safe.code, safeErrorMessage: safe.message, nextAction: safe.nextAction };
-      const error = safeAuthError(AUTH_STATES.OAUTH_REJECTED, diagnostic); error.rpcCode = response.error.code; throw error;
-    }
-    if (index === 1) diagnostic = safeAuthDiagnostic({ ...diagnostic, authStage: 'SESSION_ESTABLISHED', authState: AUTH_STATES.AUTHENTICATED, oauthRpcName: '.lq.Lobby.prepareLogin', sessionEstablished: true, nextRpc: '.lq.Lobby.fetchGameRecord', nextAction: 'fetchGameRecordを実行します' });
+    const inspected = inspectRpcFrame(bytes, index + 1, sequence[index]); inspections[index] = inspected;
+    timeline[index] = { ...timeline[index], status: inspected.meta.errorDetected ? 'failed' : 'succeeded', requestSent: true, responseReceived: true, rpcCode: inspected.meta.rpcCode, responseType: inspected.meta.responseType, envelopePresent: inspected.meta.envelopePresent, payloadDetected: inspected.meta.payloadDetected, payloadSize: inspected.meta.payloadSize };
+    const failure = inspected.meta.errorDetected ? classifyRpcFailure(sequence[index], inspected.meta.rpcCode) : null;
+    if (failure && !firstFailure) firstFailure = { ...failure, rpc: sequence[index], rpcCode: inspected.meta.rpcCode };
+    const stage = index === 0 ? 'REQUEST_CONNECTION_RESPONSE' : index === 1 ? 'PREPARE_LOGIN_RESPONSE' : index === 2 ? 'FETCH_GAME_RECORD_RESPONSE' : index === 3 ? 'READ_GAME_RECORD_RESPONSE' : 'GAME_RECORD_DETAIL_RESPONSE';
+    diagnostic = safeAuthDiagnostic({ ...diagnostic, authStage: stage, authState: failure ? failure.state : index < 2 ? AUTH_STATES.OAUTH_RESPONSE_RECEIVED : AUTH_STATES.FETCH_GAME_RECORD_REACHED, currentRpc: sequence[index], oauthRpcName: sequence[index], oauthRequestBuilt: true, oauthResponseReceived: true, sessionEstablished: index >= 1 && !inspections[1]?.meta.errorDetected, fetchGameRecordReached: index >= 2, rpcTimeline: timeline, rpcSequence: sequence, nextRpc: sequence[index + 1] || null, confirmedRpcCount: sequence.length, protobufDetected: inspected.meta.protobufDetected, protobufEnvelopeParsed: inspected.meta.protobufEnvelopeParsed, envelopeType: inspected.meta.envelopeType, messageType: inspected.meta.messageType, payloadLength: inspected.meta.payloadSize, fieldNumbers: inspected.meta.fieldNumbers, wireTypes: inspected.meta.wireTypes, nestedPayloadDetected: inspected.meta.nestedPayloadDetected, compressionDetected: inspected.meta.compressionDetected, payloadEncoding: inspected.meta.payloadEncoding, actualFailureStage: failure ? failure.stage : diagnostic.actualFailureStage, actualFailureRpc: failure ? sequence[index] : diagnostic.actualFailureRpc, actualFailureCode: failure ? failure.code : diagnostic.actualFailureCode, actualFailureReason: failure ? failure.reason : diagnostic.actualFailureReason, classificationCorrected: Boolean(failure), previousClassification: failure ? failure.previous : diagnostic.previousClassification, currentClassification: failure ? failure.state : diagnostic.currentClassification, safeErrorCode: failure ? failure.code : diagnostic.safeErrorCode, safeErrorMessage: failure ? failure.reason : diagnostic.safeErrorMessage, nextAction: index < 4 ? '次の現行RPCを実行します' : '牌譜本体を検証します' });
+    if (index === 3) diagnostic = safeAuthDiagnostic({ ...diagnostic, readGameRecordReached: true, readGameRecordRequestSent: true, readGameRecordResponseReceived: true, readGameRecordSucceeded: !inspected.meta.errorDetected, readGameRecordRpcCode: inspected.meta.rpcCode, readGameRecordResponseType: inspected.meta.responseType, readGameRecordEnvelopeType: inspected.meta.envelopeType, readGameRecordMessageType: inspected.meta.messageType, readGameRecordPayloadDetected: inspected.meta.payloadDetected, readGameRecordPayloadSize: inspected.meta.payloadSize, readGameRecordErrorDetected: inspected.meta.errorDetected, readGameRecordErrorCode: inspected.meta.errorCode, readGameRecordErrorMessage: inspected.meta.errorDetected ? 'readGameRecordが安全なRPCエラーを返しました' : null });
+    if (index === 4) diagnostic = safeAuthDiagnostic({ ...diagnostic, fetchGameRecordsDetailReached: true, fetchGameRecordsDetailRequestSent: true, fetchGameRecordsDetailResponseReceived: true, fetchGameRecordsDetailSucceeded: !inspected.meta.errorDetected, fetchGameRecordsDetailRpcCode: inspected.meta.rpcCode, fetchGameRecordsDetailResponseType: inspected.meta.responseType, fetchGameRecordsDetailEnvelopeType: inspected.meta.envelopeType, fetchGameRecordsDetailMessageType: inspected.meta.messageType, fetchGameRecordsDetailPayloadDetected: inspected.meta.payloadDetected, fetchGameRecordsDetailPayloadSize: inspected.meta.payloadSize, fetchGameRecordsDetailErrorDetected: inspected.meta.errorDetected, fetchGameRecordsDetailErrorCode: inspected.meta.errorCode, fetchGameRecordsDetailErrorMessage: inspected.meta.errorDetected ? 'fetchGameRecordsDetailV2が安全なRPCエラーを返しました' : null });
+    // 認証段階の失敗だけは後続RPCを実行できないため中断する。
+    if (failure && index < 2) { const error = safeAuthError(failure.state, diagnostic); error.rpcCode = inspected.meta.rpcCode; throw error; }
+    if (index === 1) diagnostic = safeAuthDiagnostic({ ...diagnostic, authStage: 'SESSION_ESTABLISHED', authState: AUTH_STATES.AUTHENTICATED, sessionEstablished: true, nextRpc: '.lq.Lobby.fetchGameRecord', nextAction: 'fetchGameRecordを実行します' });
   });
   if (!diagnostic.sessionEstablished) throw safeAuthError(AUTH_STATES.SESSION_NOT_ESTABLISHED, { ...diagnostic, authStage: 'SESSION_ESTABLISHMENT', authState: AUTH_STATES.SESSION_NOT_ESTABLISHED, safeErrorCode: 'SESSION_NOT_ESTABLISHED', safeErrorMessage: 'OAuth応答後にセッションを確立できませんでした', nextAction: '認証Secretを再取得して登録し直してください' });
-  try { return { parsed: parseRpcResponse(frames[2], 3), rpcCode: 0, authDiagnostic: { ...diagnostic, authStage: 'GAME_RECORD_SEQUENCE_COMPLETED', fetchGameRecordReached: true, nextRpc: null } }; }
-  catch (_) { throw safeAuthError(AUTH_STATES.FETCH_GAME_RECORD_FAILED, { ...diagnostic, authStage: 'FETCH_GAME_RECORD', authState: AUTH_STATES.FETCH_GAME_RECORD_FAILED, fetchGameRecordReached: true, safeErrorCode: 'FETCH_GAME_RECORD_RESPONSE_INVALID', safeErrorMessage: '牌譜RPC応答を解析できませんでした', nextAction: '同じ共有URLでもう一度試してください' }, 502); }
+  let parsed; try { parsed = parseRpcResponse(frames[2], 3); } catch (_) { parsed = { method: sequence[2], data: null, dataUrl: '', error: null }; }
+  const payloadCandidates = [2, 3, 4].map((index) => inspections[index] && inspections[index].payload && inspections[index].payload.length ? { rpc: sequence[index], payload: inspections[index].payload, meta: inspections[index].meta } : null).filter(Boolean);
+  const selected = payloadCandidates[0] || null;
+  if (selected) return { parsed, recordBytes: selected.payload, payloadSourceRpc: selected.rpc, payloadMeta: selected.meta, rpcCode: selected.meta.rpcCode, authDiagnostic: safeAuthDiagnostic({ ...diagnostic, authStage: 'PAIPU_PAYLOAD_DETECTED', authState: AUTH_STATES.PAIPU_FETCH_SUCCEEDED, currentRpc: selected.rpc, messageType: selected.meta.messageType, payloadLength: selected.payload.length, safeErrorCode: null, safeErrorMessage: null, currentClassification: AUTH_STATES.PAIPU_FETCH_SUCCEEDED, nextRpc: null, nextAction: '取得したProtobufを内部処理へ渡します' }) };
+  if (firstFailure) { const failedDiagnostic = safeAuthDiagnostic({ ...diagnostic, authStage: firstFailure.stage, authState: firstFailure.state, actualFailureStage: firstFailure.stage, actualFailureRpc: firstFailure.rpc, actualFailureCode: firstFailure.code, actualFailureReason: firstFailure.reason, classificationCorrected: true, previousClassification: firstFailure.previous, currentClassification: firstFailure.state, safeErrorCode: firstFailure.code, safeErrorMessage: firstFailure.reason, nextRpc: null, nextAction: '同じ共有URLで再試行し、実際に失敗したRPCを確認してください' }); const error = safeAuthError(firstFailure.state, failedDiagnostic, 502); error.rpcCode = firstFailure.rpcCode; throw error; }
+  throw safeAuthError(AUTH_STATES.PAYLOAD_EMPTY, safeAuthDiagnostic({ ...diagnostic, authStage: 'PAYLOAD_INSPECTION', authState: AUTH_STATES.PAYLOAD_EMPTY, safeErrorCode: 'PAYLOAD_EMPTY', safeErrorMessage: '全RPC応答を受信しましたが牌譜Payloadを検出できませんでした', currentClassification: AUTH_STATES.PAYLOAD_EMPTY, nextRpc: null, nextAction: '共有URLがブラウザで表示できることを確認して再試行してください' }), 502);
 }
 
 async function fetchRecordPayload(paipuId, analysis, signal, auth) {
-  const candidates = [paipuId];
-  const uuid = paipuId.split('_')[0];
-  if (uuid !== paipuId) candidates.push(uuid);
+  // v5.3.4: 認証フローでは現行実通信と同じ完全IDだけを送り、UUID推測を行わない。
+  const candidates = auth ? [paipuId] : [paipuId, paipuId.split('_')[0]].filter((value, index, values) => values.indexOf(value) === index);
   // v5.3.3: 認証時は推測候補を廃止し、実通信と同じSecret内clientVersionStringだけを使う。
   const versionCandidates = auth ? [auth.clientVersionString] : [CURRENT_LIQI_CLIENT_VERSION, '0.16.206.w', 'v0.16.206.W.' + analysis.buildVersion, analysis.buildVersion];
   const attempts = []; let lastAuthDiagnostic = null;
@@ -383,9 +437,10 @@ async function fetchRecordPayload(paipuId, analysis, signal, auth) {
     const started = Date.now();
     try {
       requestId += 1;
-      let parsed, rpcCode = null;
-      if (auth) { const authenticated = await authenticatedFetchRecord(analysis.gatewayUrl, auth, id, clientVersion); parsed = authenticated.parsed; rpcCode = authenticated.rpcCode; lastAuthDiagnostic = authenticated.authDiagnostic; }
+      let parsed, rpcCode = null, authenticated = null;
+      if (auth) { authenticated = await authenticatedFetchRecord(analysis.gatewayUrl, auth, id, clientVersion); parsed = authenticated.parsed; rpcCode = authenticated.rpcCode; lastAuthDiagnostic = authenticated.authDiagnostic; }
       else { const raw = await websocketRpc(analysis.gatewayUrl, buildRpcRequest(id, clientVersion, requestId), 15000); parsed = parseRpcResponse(raw, requestId); }
+      if (authenticated && authenticated.recordBytes && authenticated.recordBytes.length) return { bytes: authenticated.recordBytes, sourceUrl: analysis.gatewayUrl, finalUrl: analysis.gatewayUrl, httpStatus: 101, contentType: 'application/x-protobuf', redirect: false, durationMs: Date.now() - started, accessedApi: authenticated.payloadSourceRpc, payloadSourceRpc: authenticated.payloadSourceRpc, payloadMeta: authenticated.payloadMeta, clientVersion, attempts, authDiagnostic: lastAuthDiagnostic, authState: AUTH_STATES.PAIPU_FETCH_SUCCEEDED, rpcCode };
       if (parsed.data && parsed.data.length) return { bytes: parsed.data, sourceUrl: analysis.gatewayUrl, finalUrl: analysis.gatewayUrl, httpStatus: 101, contentType: 'application/x-protobuf', redirect: false, durationMs: Date.now() - started, accessedApi: '.lq.Lobby.fetchGameRecord', clientVersion, attempts, authDiagnostic: lastAuthDiagnostic, authState: auth ? AUTH_STATES.PAIPU_FETCH_SUCCEEDED : AUTH_STATES.AUTHENTICATED, rpcCode };
       if (parsed.dataUrl && /^https:\/\//i.test(parsed.dataUrl)) {
         const response = await fetch(parsed.dataUrl, { signal, redirect: 'follow', headers: { Accept: 'application/octet-stream,application/x-protobuf,*/*;q=0.5' } });
@@ -397,11 +452,11 @@ async function fetchRecordPayload(paipuId, analysis, signal, auth) {
     } catch (error) {
       if (error.authDiagnostic) lastAuthDiagnostic = error.authDiagnostic;
       attempts.push({ clientVersion, gatewayConnected: true, durationMs: Date.now() - started, reason: error.code || 'RPC_FAILED', safeErrorCode: error.authDiagnostic && error.authDiagnostic.safeErrorCode || null });
-      if (error.code === AUTH_STATES.OAUTH_REJECTED || error.code === AUTH_STATES.OAUTH_REQUEST_BUILD_FAILED || error.code === AUTH_STATES.SESSION_NOT_ESTABLISHED) { error.attempts = attempts; throw error; }
+      if (auth && error.authDiagnostic) { error.attempts = attempts; throw error; }
     }
   }
   const error = new Error('現行ゲートウェイは応答しましたが、牌譜本体を取得できませんでした');
-  error.code = AUTH_STATES.FETCH_GAME_RECORD_FAILED; error.status = 404; error.attempts = attempts; error.authDiagnostic = lastAuthDiagnostic ? { ...lastAuthDiagnostic, authStage: 'FETCH_GAME_RECORD', authState: AUTH_STATES.FETCH_GAME_RECORD_FAILED, fetchGameRecordReached: true, safeErrorCode: 'RECORD_NOT_FOUND', safeErrorMessage: '牌譜RPCは応答しましたが牌譜本体がありません', nextAction: '共有URLが自分のアカウントで閲覧できるか確認してください' } : safeAuthDiagnostic({ authStage: 'FETCH_GAME_RECORD', authState: AUTH_STATES.FETCH_GAME_RECORD_FAILED, fetchGameRecordReached: true, safeErrorCode: 'RECORD_NOT_FOUND', safeErrorMessage: '牌譜RPCは応答しましたが牌譜本体がありません', nextAction: '共有URLが自分のアカウントで閲覧できるか確認してください' }); throw error;
+  error.code = AUTH_STATES.PAYLOAD_EMPTY; error.status = 502; error.attempts = attempts; error.authDiagnostic = lastAuthDiagnostic ? { ...lastAuthDiagnostic, authStage: 'PAYLOAD_INSPECTION', authState: AUTH_STATES.PAYLOAD_EMPTY, safeErrorCode: 'PAYLOAD_EMPTY', safeErrorMessage: '牌譜RPCは応答しましたがPayloadが空です', nextAction: '共有URLがブラウザで表示できることを確認してください' } : safeAuthDiagnostic({ authStage: 'PAYLOAD_INSPECTION', authState: AUTH_STATES.PAYLOAD_EMPTY, safeErrorCode: 'PAYLOAD_EMPTY', safeErrorMessage: '牌譜RPCは応答しましたがPayloadが空です', nextAction: '共有URLがブラウザで表示できることを確認してください' }); throw error;
 }
 
 async function fetchMajsoulPaipu(paipuId, env, signal) {
@@ -412,7 +467,7 @@ async function fetchMajsoulPaipu(paipuId, env, signal) {
   try {
     const record = await fetchRecordPayload(paipuId, analysis, signal, auth);
     if (record.bytes.length > MAX_PAYLOAD_BYTES) { const error = new Error('牌譜データが上限を超えました'); error.code = 'PAYLOAD_TOO_LARGE'; error.status = 413; throw error; }
-    return { ...record, analysis, authDiagnostic: { ...(record.authDiagnostic || safeAuthDiagnostic()), authStage: 'PAIPU_FETCH', authState: AUTH_STATES.PAIPU_FETCH_SUCCEEDED, oauthResponseReceived: true, sessionEstablished: true, fetchGameRecordReached: true, safeErrorCode: null, safeErrorMessage: null, nextAction: '牌譜デコードは次バージョンで実行します' }, secretConfigured: true, gatewayConnected: true, rpc: '.lq.Lobby.fetchGameRecord', payloadType: 'protobuf', payloadEncoding: 'base64', size: record.bytes.length, payload: bytesToBase64(record.bytes) };
+    return { ...record, analysis, authDiagnostic: { ...(record.authDiagnostic || safeAuthDiagnostic()), authStage: 'PAIPU_FETCH', authState: AUTH_STATES.PAIPU_FETCH_SUCCEEDED, oauthResponseReceived: true, sessionEstablished: true, fetchGameRecordReached: true, safeErrorCode: null, safeErrorMessage: null, nextAction: '牌譜デコードは次バージョンで実行します' }, secretConfigured: true, gatewayConnected: true, rpc: record.payloadSourceRpc || '.lq.Lobby.fetchGameRecord', payloadType: 'protobuf', payloadEncoding: 'base64', size: record.bytes.length, payload: bytesToBase64(record.bytes) };
   } catch (error) { error.analysis = analysis; throw error; }
 }
 
@@ -431,7 +486,7 @@ async function handlePaipu(request, env, url) {
   if (!paipuId) return errorResponse(request, env, 400, 'INVALID_PAIPU_ID', '雀魂共有URLまたは牌譜IDの形式が正しくありません');
   try {
     const result = await withTimeout((signal) => fetchMajsoulPaipu(paipuId, env, signal), REQUEST_TIMEOUT_MS);
-    return jsonResponse(request, env, { ok: true, version: 1, source: 'majsoul', paipuId, ...result.authDiagnostic, secretConfigured: true, gatewayConnected: true, rpc: result.rpc, rpcCode: result.rpcCode, paipuFetchSucceeded: true, sourceType: 'current_gateway_rpc', gateway: new URL(result.sourceUrl).host, sourceUrl: result.sourceUrl, finalUrl: result.finalUrl, accessedApi: result.accessedApi, httpStatus: result.httpStatus, contentType: result.contentType, payloadType: result.payloadType, size: result.size, durationMs: result.durationMs, redirect: result.redirect, payloadEncoding: result.payloadEncoding, attempts: result.attempts, analysis: result.analysis, payload: result.payload });
+    return jsonResponse(request, env, { ok: true, version: 1, source: 'majsoul', paipuId, ...result.authDiagnostic, secretConfigured: true, gatewayConnected: true, rpc: result.rpc, rpcCode: result.rpcCode, paipuFetchSucceeded: true, sourceType: 'current_gateway_rpc', gateway: new URL(result.sourceUrl).host, sourceUrl: result.sourceUrl, finalUrl: result.finalUrl, accessedApi: result.accessedApi, payloadSourceRpc: result.payloadSourceRpc || result.rpc, responseMessageType: result.payloadMeta && result.payloadMeta.messageType || result.messageType, httpStatus: result.httpStatus, contentType: result.contentType, payloadType: result.payloadType, size: result.size, durationMs: result.durationMs, redirect: result.redirect, payloadEncoding: result.payloadEncoding, attempts: result.attempts, analysis: result.analysis, payload: result.payload });
   } catch (error) {
     const secretConfigured = Boolean(env && env[AUTH_SECRET_NAME]);
     const authDiagnostic = error.authDiagnostic || safeAuthDiagnostic({ authStage: 'FETCH_GAME_RECORD', authState: error.code || AUTH_STATES.FETCH_GAME_RECORD_FAILED, safeErrorCode: error.code || 'UNKNOWN_ERROR', safeErrorMessage: '安全な詳細を取得できませんでした', nextAction: '同じ操作を再試行してください' });
@@ -459,4 +514,4 @@ export default {
   }
 };
 
-export { AUTH_STATES, analyzeCurrentClient, buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, extractPaipuId, extractUnityConfig, fetchMajsoulPaipu, parseAuthSecret, parseRpcResponse, validatePaipuId };
+export { AUTH_STATES, analyzeCurrentClient, buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, classifyRpcFailure, extractPaipuId, extractUnityConfig, fetchMajsoulPaipu, inspectRpcFrame, parseAuthSecret, parseRpcResponse, validatePaipuId };
