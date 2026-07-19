@@ -1,12 +1,14 @@
 {
   "name": "mahjong-paipu-proxy",
-  "version": "5.3.2",
+  "version": "5.3.3",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test src/index.test.js",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "rpc": "pbpaste | node tools/analyze-record-har-safe.mjs",
+    "rpc-focus": "pbpaste | node tools/analyze-record-har-safe.mjs --focus"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

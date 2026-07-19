@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import worker, { buildPrepareLoginRequest, buildRequestConnectionRequest, buildRpcRequest, extractPaipuId, extractUnityConfig, parseAuthSecret, parseRpcResponse } from './index.js';
+import worker, { buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, extractPaipuId, extractUnityConfig, parseAuthSecret, parseRpcResponse } from './index.js';
 
 function field(id, value) {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
@@ -43,6 +43,15 @@ test('現行認証Secretを検証し、認証RPCをProtobuf化する', () => {
   assert.equal(auth.flowVersion, 'route-prepare-login-v1');
   assert.match(new TextDecoder().decode(buildRequestConnectionRequest(auth, 1)), /\.lq\.Route\.requestConnection/);
   assert.match(new TextDecoder().decode(buildPrepareLoginRequest(auth, 2)), /\.lq\.Lobby\.prepareLogin/);
+});
+
+test('現行牌譜画面の後続RPCへ実通信と同じ入力型を渡す', () => {
+  const read = new TextDecoder().decode(buildReadGameRecordRequest('current-web-version', 4));
+  const detail = new TextDecoder().decode(buildGameRecordsDetailRequest('240101-test_abc', 5));
+  assert.match(read, /\.lq\.Lobby\.readGameRecord/);
+  assert.match(read, /current-web-version/);
+  assert.match(detail, /\.lq\.Lobby\.fetchGameRecordsDetailV2/);
+  assert.match(detail, /240101-test_abc/);
 });
 
 test('healthはSecret値を返さず設定有無だけ返す', async () => {
