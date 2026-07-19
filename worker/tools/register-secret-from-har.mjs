@@ -1,4 +1,4 @@
-// v5.3.0: ChromeのSanitized HARを標準入力から読み、認証値を表示せずWorker Secretへ直接登録する。
+// v5.3.1: ChromeのSanitized HARを標準入力から読み、認証値を表示せずWorker Secretへ直接登録する。
 import { spawnSync } from 'node:child_process';
 
 const chunks = [];

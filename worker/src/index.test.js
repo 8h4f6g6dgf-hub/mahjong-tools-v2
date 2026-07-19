@@ -51,3 +51,13 @@ test('healthはSecret値を返さず設定有無だけ返す', async () => {
   assert.doesNotMatch(text, /never-return-this/);
   assert.equal(JSON.parse(text).secretConfigured, true);
 });
+
+test('Secret形式不正を安全な段階コードで返す', async () => {
+  const response = await worker.fetch(new Request('https://example.test/api/paipu?id=240101-test_abc'), { MAJSOUL_OAUTH2_CREDENTIALS: '{"type":"invalid","accessToken":"do-not-return"}' });
+  const text = await response.text(), body = JSON.parse(text);
+  assert.equal(response.status, 503);
+  assert.equal(body.error.code, 'SECRET_FORMAT_INVALID');
+  assert.equal(body.diagnostics.authStage, 'SECRET_VALIDATION');
+  assert.equal(body.diagnostics.nextAction, '認証Secretを再取得して登録し直してください');
+  assert.doesNotMatch(text, /do-not-return/);
+});

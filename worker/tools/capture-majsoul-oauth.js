@@ -1,4 +1,4 @@
-// v5.3.0: 現行WebSocketのoauth2Login送信値を第三者へ送らず、端末内のクリップボードだけへ渡す。
+// v5.3.1: 現行WebSocketのOAuth送信値を第三者へ送らず、端末内のクリップボードだけへ渡す。
 // Chrome DevTools Consoleで実行後、Networkを一度Offline→Onlineにして再接続させる。
 (() => {
   const originalSend = WebSocket.prototype.send;
