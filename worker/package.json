@@ -8,7 +8,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "rpc": "pbpaste | node tools/analyze-record-har-safe.mjs",
-    "rpc-focus": "pbpaste | node tools/analyze-record-har-safe.mjs --focus"
+    "rpc-focus": "pbpaste | node tools/analyze-record-har-safe.mjs --focus",
+    "register-fetch-profile": "pbpaste | node tools/register-fetch-profile-from-har.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

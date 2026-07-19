@@ -6,7 +6,7 @@ GitHub Pagesで動作するPWAです。v5.3.5では、`fetchGameRecord`を現在
 
 ## v5.3.5：認証SecretとHAR構造の安全な登録手順
 
-認証情報はCloudflare Worker Secretだけへ保存します。必要なSecretは`MAJSOUL_OAUTH2_CREDENTIALS`の1個です。現在の雀魂Web版で確認した`requestConnection → prepareLogin → heartbeat`のうち、Workerの再接続に必要な値だけを1つのJSONとして保存します。パスワード、Cookie、Account ID、端末IDは保存しません。
+認証情報はCloudflare Worker Secretだけへ保存します。認証値は`MAJSOUL_OAUTH2_CREDENTIALS`、接続済みHARから更新する値を含まないfetch構造は`MAJSOUL_FETCH_GAME_RECORD_PROFILE`へ分離できます。現在の雀魂Web版で確認した`requestConnection → prepareLogin → heartbeat`のうち、Workerの再接続に必要な値だけを保存します。パスワード、Cookie、Account ID、端末IDは保存しません。
 
 1. 必要なSecret名は`MAJSOUL_OAUTH2_CREDENTIALS`です。
 2. 保存する値は、接続種別、現行クライアント識別文字列、ログイン種別、`prepareLogin`へ渡す不透明な認証値です。実際の値は表示・共有しません。
@@ -22,6 +22,14 @@ GitHub Pagesで動作するPWAです。v5.3.5では、`fetchGameRecord`を現在
    ```
 
 8. コマンドが「HAR完全一致済みfetchGameRecord構造」と表示したことを確認します。続けて`https://mahjong-paipu-proxy.mahjong-paihu.workers.dev/health`を開き、`secretConfigured`と`secretSchemaValid`がともに`true`であることを確認します。Secretだけの更新なら追加デプロイは不要です。
+
+共有URLの再読込でロビーへ戻り、認証RPCと牌譜RPCを同じHARへ保存できない場合は、既存の認証Secretを変更せずfetch構造だけを登録します。牌譜表示中のNetwork一覧からsanitized HARをコピーし、`worker`ディレクトリで次を実行します。
+
+```bash
+npm run register-fetch-profile
+```
+
+成功時は`fetchGameRecord構造だけを安全に登録しました`と表示されます。
 9. Secretを更新するときは、現在の雀魂Web版へログインし直して手順4〜7を再実行します。
 10. Secretを削除する場合は次を実行します。
 

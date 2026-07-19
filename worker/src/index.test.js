@@ -58,6 +58,13 @@ test('現行認証Secretを検証し、認証RPCをProtobuf化する', () => {
   assert.match(new TextDecoder().decode(buildPrepareLoginRequest(auth, 2)), /\.lq\.Lobby\.prepareLogin/);
 });
 
+test('既存認証Secretと別Secretのfetch構造を安全に結合する', () => {
+  const credential = JSON.stringify({ flowVersion: 'route-prepare-login-v1', connectionType: 2, clientVersionString: 'current-web-version', providerType: 21, prepareLoginToken: 'local-test-token' });
+  const auth = parseAuthSecret({ MAJSOUL_OAUTH2_CREDENTIALS: credential, MAJSOUL_FETCH_GAME_RECORD_PROFILE: JSON.stringify(fetchProfile) });
+  assert.equal(auth.fetchGameRecordProfile.validated, true);
+  assert.equal(auth.clientVersionString, 'current-web-version');
+});
+
 test('現行牌譜画面の後続RPCへ実通信と同じ入力型を渡す', () => {
   const read = new TextDecoder().decode(buildReadGameRecordRequest('current-web-version', 4));
   const detail = new TextDecoder().decode(buildGameRecordsDetailRequest('240101-test_abc', 5));

@@ -7,6 +7,7 @@ const MAJSOUL_PAGE_URL = 'https://game.mahjongsoul.com/';
 // v5.3.0: 2026-07-19の現行公式Web画面に表示された v0.16.206.W.4.0.11 を根拠にする。
 const CURRENT_LIQI_CLIENT_VERSION = 'web-0.16.206';
 const AUTH_SECRET_NAME = 'MAJSOUL_OAUTH2_CREDENTIALS';
+const FETCH_PROFILE_SECRET_NAME = 'MAJSOUL_FETCH_GAME_RECORD_PROFILE';
 const AUTH_STATES = Object.freeze({
   SECRET_NOT_CONFIGURED: 'SECRET_NOT_CONFIGURED', SECRET_FORMAT_INVALID: 'SECRET_FORMAT_INVALID',
   OAUTH_PREFLIGHT_FAILED: 'OAUTH_PREFLIGHT_FAILED', OAUTH_REQUEST_BUILD_FAILED: 'OAUTH_REQUEST_BUILD_FAILED', OAUTH_RPC_SENT: 'OAUTH_RPC_SENT',
@@ -167,7 +168,8 @@ function parseAuthSecret(env) {
   if (!env || !env[AUTH_SECRET_NAME]) return null;
   try {
     const value = JSON.parse(env[AUTH_SECRET_NAME]);
-    const profile = value.fetchGameRecordProfile;
+    // v5.3.5: 接続済みHARでは認証RPCが再送されないため、検証済みfetch構造だけを別Secretで更新可能にする。
+    const profile = env[FETCH_PROFILE_SECRET_NAME] ? JSON.parse(env[FETCH_PROFILE_SECRET_NAME]) : value.fetchGameRecordProfile;
     const profileValid = profile && profile.version === 'current-har-v1' && profile.validated === true && profile.messageType === '.lq.Lobby.fetchGameRecord' && Array.isArray(profile.envelopeFields) && Array.isArray(profile.requestFields) && profile.requestFields.length > 0 && profile.requestFields.every((item) => Number.isInteger(item.field) && item.wire === 2 && (item.source === 'completePaipuId' || item.source === 'clientVersionString'));
     if (value.flowVersion !== 'route-prepare-login-v1' || !Number.isInteger(value.connectionType) || typeof value.clientVersionString !== 'string' || !value.clientVersionString || !Number.isInteger(value.providerType) || typeof value.prepareLoginToken !== 'string' || !value.prepareLoginToken || !profileValid) return null;
     return { flowVersion: value.flowVersion, connectionType: value.connectionType, clientVersionString: value.clientVersionString, providerType: value.providerType, prepareLoginToken: value.prepareLoginToken, fetchGameRecordProfile: profile };
