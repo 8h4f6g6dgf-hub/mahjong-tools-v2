@@ -4,7 +4,7 @@
   "build": "536",
   "buildId": "20260720-0207",
   "buildTime": "2026-07-20T02:07:01+09:00",
-  "commit": "pending",
+  "commit": "042853d",
   "serviceWorkerVersion": "5.3.6",
   "cacheName": "mahjong-tools-v5.3.6",
   "environment": "GitHub Pages",
