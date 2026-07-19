@@ -1,4 +1,4 @@
-// v5.3.5: 認証済みセッションのHARからfetchGameRecord構造だけを安全に別Secretへ登録する。
+// v5.3.6: 認証済みセッションのHARからfetchGameRecordの構造と値の役割を別Secretへ登録する。
 import { spawnSync } from 'node:child_process';
 
 const chunks = [];
@@ -30,25 +30,40 @@ function candidates(data) {
   return list;
 }
 
-let profile = null;
-for (const entry of har?.log?.entries || []) {
+let profile = null, fetchResponseReceived = false;
+for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
+  const pendingFetchIds = new Set();
   for (const message of entry._webSocketMessages || entry.webSocketMessages || []) {
-    if (message.type !== 'send' || typeof message.data !== 'string') continue;
+    if (typeof message.data !== 'string') continue;
     for (const bytes of candidates(message.data)) {
       try {
-        if (bytes[0] !== 2) continue;
+        const requestId = bytes[1] | (bytes[2] << 8);
+        if (bytes[0] === 3 && message.type === 'receive' && pendingFetchIds.has(requestId)) { fetchResponseReceived = true; continue; }
+        if (bytes[0] !== 2 || message.type !== 'send') continue;
         const envelope = fields(bytes.subarray(3));
         const method = Buffer.from(envelope.find((item) => item.field === 1)?.value || []).toString('utf8');
         if (method !== '.lq.Lobby.fetchGameRecord') continue;
+        pendingFetchIds.add(requestId);
         const body = fields(envelope.find((item) => item.field === 2)?.value || Buffer.alloc(0));
         const envelopeFields = envelope.map(({ field, wire }) => ({ field, wire }));
         const bodyFields = body.map(({ field, wire }) => ({ field, wire }));
         const envelopeMatched = envelopeFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2';
         const fieldsMatched = bodyFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2';
-        if (envelopeMatched && fieldsMatched) profile = {
-          version: 'current-har-v1', messageType: method, envelopeFields,
-          // 現行実HARで確認済みのfield対応。値そのものはSecretへ保存しない。
-          requestFields: [{ field: 1, wire: 2, source: 'completePaipuId' }, { field: 2, wire: 2, source: 'clientVersionString' }],
+        const fetchClientContext = Buffer.from(body.find((item) => item.field === 2)?.value || []).toString('utf8');
+        const clientVersionIsRouteId = /^jp-\d+$/i.test(fetchClientContext);
+        const clientVersionValidated = Boolean(fetchClientContext) && !fetchClientContext.includes('\uFFFD') && !clientVersionIsRouteId;
+        if (envelopeMatched && fieldsMatched && clientVersionValidated) profile = {
+          version: 'current-har-v2', messageType: method, envelopeFields,
+          // field 1/2は現在のfetchGameRecord requestからRPC・方向・field単位で特定する。値はWorker Secret外へ出力しない。
+          requestFields: [{ field: 1, wire: 2, source: 'completePaipuId' }, { field: 2, wire: 2, source: 'fetchClientContext' }],
+          fetchClientContext,
+          clientVersionSourceRole: 'fetchGameRecordClientContext', clientVersionSourceRpc: method,
+          clientVersionValidated, clientVersionIsRouteId, clientVersionSemanticMatch: clientVersionValidated,
+          field1SourceValidated: true, field2SourceValidated: true, semanticValidated: true,
+          sourceMetadata: [
+            { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 1, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'completePaipuId' },
+            { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 2, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'fetchClientContext' }
+          ],
           validated: true
         };
       } catch (_) { /* 別表現の候補は無視し、認証値やPayloadは出力しない。 */ }
@@ -56,7 +71,7 @@ for (const entry of har?.log?.entries || []) {
   }
 }
 
-if (!profile) {
+if (!profile || !fetchResponseReceived) {
   console.error('FETCH_PROFILE_NOT_FOUND: 牌譜表示中のgateway通信を含むHARをコピーしてください。');
   process.exit(2);
 }
@@ -65,4 +80,4 @@ const result = spawnSync('npx', ['wrangler', 'secret', 'put', 'MAJSOUL_FETCH_GAM
 });
 profile = null;
 if (result.status !== 0) process.exit(result.status || 1);
-console.log('fetchGameRecord構造だけを安全に登録しました。既存の認証Secretは変更していません。');
+console.log('fetchGameRecordの構造と意味検証済みclient contextを安全に登録しました。既存の認証Secretは変更していません。');

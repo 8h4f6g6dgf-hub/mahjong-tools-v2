@@ -1,4 +1,4 @@
-// v5.3.5: 認証値とfetchGameRecordの安全なHAR構造を表示せずWorker Secretへ直接登録する。
+// v5.3.6: RPC名・方向・field・同一connectionで認証値とfetch contextを特定し、表示せずSecretへ登録する。
 import { spawnSync } from 'node:child_process';
 
 const chunks = [];
@@ -50,57 +50,59 @@ for (const entry of har?.log?.entries || []) {
 }
 
 let connection = null, prepareLogin = null, fetchGameRecordProfile = null;
-for (const entry of har?.log?.entries || []) {
+const responseMatched = new Set();
+for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
+  const pending = new Map();
   for (const message of entry._webSocketMessages || entry.webSocketMessages || []) {
-    if (message.type !== 'send' || typeof message.data !== 'string') continue;
+    if (typeof message.data !== 'string') continue;
     for (const bytes of candidates(message.data)) {
       try {
-        if (bytes[0] !== 2) continue;
+        const requestId = bytes[1] | (bytes[2] << 8);
+        if (bytes[0] === 3 && message.type === 'receive' && pending.has(requestId)) {
+          responseMatched.add(`${connectionIndex}:${pending.get(requestId)}`);
+          pending.delete(requestId);
+          continue;
+        }
+        if (bytes[0] !== 2 || message.type !== 'send') continue;
         const envelope = fields(bytes.subarray(3));
         const method = Buffer.from(envelope.get(1)?.[0] || []).toString('utf8');
+        pending.set(requestId, method);
         const body = fields(envelope.get(2)?.[0] || Buffer.alloc(0));
         if (method === '.lq.Route.requestConnection') {
-          const connectionType = body.get(2)?.[0], clientVersionString = Buffer.from(body.get(3)?.[0] || []).toString('utf8');
-          if (Number.isInteger(connectionType) && clientVersionString) connection = { connectionType, clientVersionString };
+          const connectionType = body.get(2)?.[0], routeContextString = Buffer.from(body.get(3)?.[0] || []).toString('utf8');
+          if (Number.isInteger(connectionType) && routeContextString) connection = { connectionType, routeContextString, connectionIndex };
         }
-        if (method === '.lq.Lobby.prepareLogin') {
+        if (method === '.lq.Lobby.prepareLogin' && connection?.connectionIndex === connectionIndex) {
           const prepareLoginToken = Buffer.from(body.get(1)?.[0] || []).toString('utf8'), providerType = body.get(2)?.[0];
-          if (prepareLoginToken && Number.isInteger(providerType)) prepareLogin = { prepareLoginToken, providerType };
+          if (prepareLoginToken && Number.isInteger(providerType)) prepareLogin = { prepareLoginToken, providerType, connectionIndex };
         }
-        if (method === '.lq.Lobby.fetchGameRecord' && connection) {
+        if (method === '.lq.Lobby.fetchGameRecord' && connection && prepareLogin?.connectionIndex === connectionIndex && connection.connectionIndex === connectionIndex) {
           const envelopeShape = fieldShape(bytes.subarray(3)), bodyBytes = envelope.get(2)?.[0] || Buffer.alloc(0), requestShape = fieldShape(bodyBytes);
-          const versionBytes = Buffer.from(connection.clientVersionString, 'utf8');
-          const versionFieldIndexes = requestShape
-            .map((item, index) => item.wire === 2 && Buffer.from(item.value || []).equals(versionBytes) ? index : -1)
-            .filter((index) => index >= 0);
-          // v5.3.5: 共有URL再読込でロビーへ戻る現行挙動に対応するため、Document URLを必須にしない。
-          // 実HARでclientVersionStringと一致する1フィールドを確定し、残る唯一のlength-delimited値を牌譜ID入力として扱う（値は保存・表示しない）。
-          const remainingLengthFieldIndexes = requestShape
-            .map((item, index) => item.wire === 2 && !versionFieldIndexes.includes(index) ? index : -1)
-            .filter((index) => index >= 0);
+          const fetchClientContext = Buffer.from(requestShape.find((item) => item.field === 2)?.value || []).toString('utf8');
+          const clientVersionIsRouteId = /^jp-\d+$/i.test(fetchClientContext);
+          const clientVersionValidated = Boolean(fetchClientContext) && !fetchClientContext.includes('\uFFFD') && !clientVersionIsRouteId;
           const requestFields = requestShape.map((item) => {
             if (item.wire !== 2) return { field: item.field, wire: item.wire, source: 'unsupported' };
             const value = Buffer.from(item.value || []);
             if (sharedId && value.equals(Buffer.from(sharedId, 'utf8'))) return { field: item.field, wire: item.wire, source: 'completePaipuId' };
-            if (value.equals(versionBytes)) return { field: item.field, wire: item.wire, source: 'clientVersionString' };
-            if (!sharedId && versionFieldIndexes.length === 1 && remainingLengthFieldIndexes.length === 1 && remainingLengthFieldIndexes[0] === requestShape.indexOf(item)) {
-              return { field: item.field, wire: item.wire, source: 'completePaipuId' };
-            }
+            if (item.field === 1) return { field: item.field, wire: item.wire, source: 'completePaipuId' };
+            if (item.field === 2 && clientVersionValidated) return { field: item.field, wire: item.wire, source: 'fetchClientContext' };
             return { field: item.field, wire: item.wire, source: 'unconfirmed' };
           });
           const envelopeFields = envelopeShape.map((item) => ({ field: item.field, wire: item.wire }));
-          const validated = method === '.lq.Lobby.fetchGameRecord' && envelopeFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2' && requestFields.length > 0 && requestFields.every((item) => item.source === 'completePaipuId' || item.source === 'clientVersionString');
-          fetchGameRecordProfile = { version: 'current-har-v1', messageType: method, envelopeFields, requestFields, validated };
+          const validated = method === '.lq.Lobby.fetchGameRecord' && envelopeFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2' && requestFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2' && requestFields.every((item) => item.source === 'completePaipuId' || item.source === 'fetchClientContext');
+          fetchGameRecordProfile = { version: 'current-har-v2', messageType: method, envelopeFields, requestFields, fetchClientContext, clientVersionSourceRole: 'fetchGameRecordClientContext', clientVersionSourceRpc: method, clientVersionValidated, clientVersionIsRouteId, clientVersionSemanticMatch: clientVersionValidated, field1SourceValidated: true, field2SourceValidated: true, semanticValidated: validated && clientVersionValidated, sourceMetadata: [{ sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 1, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'completePaipuId' }, { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 2, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'fetchClientContext' }], validated };
         }
       } catch (_) { /* 候補形式が違う場合は次を試す。認証値は出力しない。 */ }
     }
   }
 }
-if (!connection || !prepareLogin || !fetchGameRecordProfile?.validated) {
+const responseSequenceMatched = connection && prepareLogin && fetchGameRecordProfile && ['.lq.Route.requestConnection', '.lq.Lobby.prepareLogin', '.lq.Lobby.fetchGameRecord'].every((rpc) => responseMatched.has(`${connection.connectionIndex}:${rpc}`));
+if (!connection || !prepareLogin || !fetchGameRecordProfile?.validated || !responseSequenceMatched) {
   console.error('現行requestConnection/prepareLogin/fetchGameRecordを完全検証できませんでした。牌譜表示操作を含むgateway通信のHARをコピーしてください。');
   process.exit(2);
 }
-let credential = { flowVersion: 'route-prepare-login-v1', ...connection, ...prepareLogin, fetchGameRecordProfile };
+let credential = { flowVersion: 'route-prepare-login-v1', connectionType: connection.connectionType, routeContextString: connection.routeContextString, providerType: prepareLogin.providerType, prepareLoginToken: prepareLogin.prepareLoginToken, fetchGameRecordProfile };
 const result = spawnSync('npx', ['wrangler', 'secret', 'put', 'MAJSOUL_OAUTH2_CREDENTIALS'], {
   cwd: new URL('..', import.meta.url), input: JSON.stringify(credential) + '\n', encoding: 'utf8', stdio: ['pipe', 'inherit', 'inherit']
 });

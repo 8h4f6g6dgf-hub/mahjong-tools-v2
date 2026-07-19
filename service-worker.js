@@ -1,6 +1,6 @@
-// v5.3.5: HAR完全一致fetchGameRecord版を旧PWAキャッシュから分離するため更新。
-const SERVICE_WORKER_VERSION = '5.3.5';
-const CACHE_NAME = 'mahjong-tools-v5.3.5';
+// v5.3.6: route IDとfetch client contextを分離した版を旧PWAキャッシュから分離するため更新。
+const SERVICE_WORKER_VERSION = '5.3.6';
+const CACHE_NAME = 'mahjong-tools-v5.3.6';
 
 const ASSETS_TO_CACHE = [
   './',
