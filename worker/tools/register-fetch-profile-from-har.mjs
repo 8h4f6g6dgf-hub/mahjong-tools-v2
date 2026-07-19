@@ -1,5 +1,6 @@
-// v5.3.6: 認証済みセッションのHARからfetchGameRecordの構造と値の役割を別Secretへ登録する。
+// v5.3.7: 認証済みセッションのHARから共有スキーマでfetchGameRecordの構造と値の役割を登録する。
 import { spawnSync } from 'node:child_process';
+import { createFetchProfile } from '../src/shared/fetch-profile-schema.js';
 
 const chunks = [];
 for await (const chunk of process.stdin) chunks.push(chunk);
@@ -52,20 +53,15 @@ for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
         const fetchClientContext = Buffer.from(body.find((item) => item.field === 2)?.value || []).toString('utf8');
         const clientVersionIsRouteId = /^jp-\d+$/i.test(fetchClientContext);
         const clientVersionValidated = Boolean(fetchClientContext) && !fetchClientContext.includes('\uFFFD') && !clientVersionIsRouteId;
-        if (envelopeMatched && fieldsMatched && clientVersionValidated) profile = {
-          version: 'current-har-v2', messageType: method, envelopeFields,
-          // field 1/2は現在のfetchGameRecord requestからRPC・方向・field単位で特定する。値はWorker Secret外へ出力しない。
+        if (envelopeMatched && fieldsMatched && clientVersionValidated) profile = createFetchProfile({
+          messageType: method, envelopeFields,
           requestFields: [{ field: 1, wire: 2, source: 'completePaipuId' }, { field: 2, wire: 2, source: 'fetchClientContext' }],
-          fetchClientContext,
-          clientVersionSourceRole: 'fetchGameRecordClientContext', clientVersionSourceRpc: method,
-          clientVersionValidated, clientVersionIsRouteId, clientVersionSemanticMatch: clientVersionValidated,
-          field1SourceValidated: true, field2SourceValidated: true, semanticValidated: true,
+          fetchClientContext, sourceConnectionIndex: connectionIndex,
           sourceMetadata: [
             { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 1, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'completePaipuId' },
             { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 2, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'fetchClientContext' }
-          ],
-          validated: true
-        };
+          ]
+        });
       } catch (_) { /* 別表現の候補は無視し、認証値やPayloadは出力しない。 */ }
     }
   }

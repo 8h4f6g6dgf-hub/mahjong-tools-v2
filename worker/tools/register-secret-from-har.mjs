@@ -1,5 +1,6 @@
-// v5.3.6: RPC名・方向・field・同一connectionで認証値とfetch contextを特定し、表示せずSecretへ登録する。
+// v5.3.7: 共有スキーマでRPC名・方向・field・接続関係を検証し、認証値を表示せずSecretへ登録する。
 import { spawnSync } from 'node:child_process';
+import { createFetchProfile } from '../src/shared/fetch-profile-schema.js';
 
 const chunks = [];
 for await (const chunk of process.stdin) chunks.push(chunk);
@@ -91,7 +92,7 @@ for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
           });
           const envelopeFields = envelopeShape.map((item) => ({ field: item.field, wire: item.wire }));
           const validated = method === '.lq.Lobby.fetchGameRecord' && envelopeFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2' && requestFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2' && requestFields.every((item) => item.source === 'completePaipuId' || item.source === 'fetchClientContext');
-          fetchGameRecordProfile = { version: 'current-har-v2', messageType: method, envelopeFields, requestFields, fetchClientContext, clientVersionSourceRole: 'fetchGameRecordClientContext', clientVersionSourceRpc: method, clientVersionValidated, clientVersionIsRouteId, clientVersionSemanticMatch: clientVersionValidated, field1SourceValidated: true, field2SourceValidated: true, semanticValidated: validated && clientVersionValidated, sourceMetadata: [{ sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 1, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'completePaipuId' }, { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 2, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'fetchClientContext' }], validated };
+          if (validated && clientVersionValidated && !clientVersionIsRouteId) fetchGameRecordProfile = createFetchProfile({ messageType: method, envelopeFields, requestFields, fetchClientContext, sourceConnectionIndex: connectionIndex, sourceMetadata: [{ sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 1, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'completePaipuId' }, { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 2, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'fetchClientContext' }] });
         }
       } catch (_) { /* 候補形式が違う場合は次を試す。認証値は出力しない。 */ }
     }

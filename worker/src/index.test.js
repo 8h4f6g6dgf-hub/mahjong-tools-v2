@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import worker, { buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, classifyRpcFailure, compareFetchRequestToProfile, extractPaipuId, extractUnityConfig, inspectRpcFrame, parseAuthSecret, parseRpcResponse } from './index.js';
+import { CONNECTION_CONTEXT_PENDING, createFetchProfile, validateFetchProfile } from './shared/fetch-profile-schema.js';
 
 function field(id, value) {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
@@ -69,6 +70,59 @@ test('route IDをfetch client contextとして受け付けない', () => {
   const invalidProfile = { ...fetchProfile, fetchClientContext: 'jp-2', clientVersionValidated: false, clientVersionIsRouteId: true, clientVersionSemanticMatch: false, semanticValidated: false };
   const credential = JSON.stringify({ flowVersion: 'route-prepare-login-v1', connectionType: 2, routeContextString: 'route-context', providerType: 21, prepareLoginToken: 'local-test-token' });
   assert.equal(parseAuthSecret({ MAJSOUL_OAUTH2_CREDENTIALS: credential, MAJSOUL_FETCH_GAME_RECORD_PROFILE: JSON.stringify(invalidProfile) }), null);
+});
+
+test('v2個別検証がすべてtrueなら意味一致となりconnectionは実行待ちになる', () => {
+  const validation = validateFetchProfile(fetchProfile);
+  assert.equal(validation.profileSchemaValid, true);
+  assert.equal(validation.requestSemanticMatched, true);
+  assert.equal(validation.connectionContextStatus, CONNECTION_CONTEXT_PENDING);
+  assert.equal(validation.connectionContextMatched, null);
+  assert.equal(validation.remainingMismatchCategory, null);
+});
+
+test('HAR connection indexは実行時connection IDとの値一致を要求しない', () => {
+  const profile = createFetchProfile({ messageType: '.lq.Lobby.fetchGameRecord', envelopeFields: fetchProfile.envelopeFields, requestFields: fetchProfile.requestFields, fetchClientContext: 'current-fetch-context', sourceConnectionIndex: 987, sourceMetadata: [] });
+  const validation = validateFetchProfile(profile);
+  assert.equal(validation.requestSemanticMatched, true);
+  assert.equal(validation.connectionContextStatus, CONNECTION_CONTEXT_PENDING);
+});
+
+test('共有スキーマv3で生成したprofileもWorker比較へ通る', () => {
+  const profile = createFetchProfile({ messageType: '.lq.Lobby.fetchGameRecord', envelopeFields: fetchProfile.envelopeFields, requestFields: fetchProfile.requestFields, fetchClientContext: 'current-fetch-context', sourceConnectionIndex: 5, sourceMetadata: [] });
+  const score = compareFetchRequestToProfile(buildRpcRequest('240101-test_abc', 'current-fetch-context', 3, profile), profile);
+  assert.equal(score.fetchGameRecordRequestValidated, true);
+  assert.equal(score.requestMatchScore, 100);
+});
+
+test('request ID方針不一致は具体的カテゴリで停止する', () => {
+  const validation = validateFetchProfile({ ...fetchProfile, requestIdPolicy: 'fixed' });
+  assert.equal(validation.requestSemanticMatched, false);
+  assert.equal(validation.remainingMismatchCategory, 'REQUEST_ID_POLICY_MISMATCH');
+});
+
+test('同一WebSocket関係が未検証なら具体的カテゴリで停止する', () => {
+  const validation = validateFetchProfile({ ...fetchProfile, connectionContextValidated: false });
+  assert.equal(validation.requestSemanticMatched, false);
+  assert.equal(validation.remainingMismatchCategory, 'CONNECTION_RELATION_MISMATCH');
+});
+
+test('prepareLogin前提が欠ければ具体的カテゴリで停止する', () => {
+  const validation = validateFetchProfile({ ...fetchProfile, prepareLoginRequired: false });
+  assert.equal(validation.requestSemanticMatched, false);
+  assert.equal(validation.remainingMismatchCategory, 'PREPARE_LOGIN_PREREQUISITE_MISSING');
+});
+
+test('route context混入時は必ず具体的な残差カテゴリで停止する', () => {
+  const validation = validateFetchProfile({ ...fetchProfile, fetchClientContext: 'jp-2', clientVersionIsRouteId: true, clientVersionValidated: false, clientVersionSemanticMatch: false });
+  assert.equal(validation.requestSemanticMatched, false);
+  assert.equal(validation.remainingMismatchCategory, 'ROUTE_CONTEXT_MIXED');
+});
+
+test('不正profileの残差カテゴリはnullにならない', () => {
+  const validation = validateFetchProfile({ ...fetchProfile, field2SourceValidated: false });
+  assert.equal(validation.requestSemanticMatched, false);
+  assert.notEqual(validation.remainingMismatchCategory, null);
 });
 
 test('現行牌譜画面の後続RPCへ実通信と同じ入力型を渡す', () => {
