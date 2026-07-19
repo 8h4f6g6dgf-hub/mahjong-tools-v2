@@ -1,4 +1,4 @@
-// v5.3.1: ChromeのSanitized HARを標準入力から読み、認証値を表示せずWorker Secretへ直接登録する。
+// v5.3.2: 現行requestConnection/prepareLogin値を表示せずWorker Secretへ直接登録する。
 import { spawnSync } from 'node:child_process';
 
 const chunks = [];
@@ -28,7 +28,7 @@ function candidates(data) {
   return list;
 }
 
-let credential = null;
+let connection = null, prepareLogin = null;
 for (const entry of har?.log?.entries || []) {
   for (const message of entry._webSocketMessages || entry.webSocketMessages || []) {
     if (message.type !== 'send' || typeof message.data !== 'string') continue;
@@ -37,18 +37,24 @@ for (const entry of har?.log?.entries || []) {
         if (bytes[0] !== 2) continue;
         const envelope = fields(bytes.subarray(3));
         const method = Buffer.from(envelope.get(1)?.[0] || []).toString('utf8');
-        if (method !== '.lq.Lobby.oauth2Login' && method !== '.lq.Lobby.oauth2Check') continue;
         const body = fields(envelope.get(2)?.[0] || Buffer.alloc(0));
-        const type = body.get(1)?.[0], token = Buffer.from(body.get(2)?.[0] || []).toString('utf8');
-        if (Number.isInteger(type) && token) credential = { type, accessToken: token };
+        if (method === '.lq.Route.requestConnection') {
+          const connectionType = body.get(2)?.[0], clientVersionString = Buffer.from(body.get(3)?.[0] || []).toString('utf8');
+          if (Number.isInteger(connectionType) && clientVersionString) connection = { connectionType, clientVersionString };
+        }
+        if (method === '.lq.Lobby.prepareLogin') {
+          const prepareLoginToken = Buffer.from(body.get(1)?.[0] || []).toString('utf8'), providerType = body.get(2)?.[0];
+          if (prepareLoginToken && Number.isInteger(providerType)) prepareLogin = { prepareLoginToken, providerType };
+        }
       } catch (_) { /* 候補形式が違う場合は次を試す。認証値は出力しない。 */ }
     }
   }
 }
-if (!credential) {
-  console.error('認証RPCを検出できませんでした。ページ再読み込み直後のgateway通信を含めてコピーしてください。');
+if (!connection || !prepareLogin) {
+  console.error('現行requestConnection/prepareLoginを検出できませんでした。ログイン直後のgateway通信を含めてコピーしてください。');
   process.exit(2);
 }
+let credential = { flowVersion: 'route-prepare-login-v1', ...connection, ...prepareLogin };
 const result = spawnSync('npx', ['wrangler', 'secret', 'put', 'MAJSOUL_OAUTH2_CREDENTIALS'], {
   cwd: new URL('..', import.meta.url), input: JSON.stringify(credential) + '\n', encoding: 'utf8', stdio: ['pipe', 'inherit', 'inherit']
 });

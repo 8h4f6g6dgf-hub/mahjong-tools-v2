@@ -1,6 +1,6 @@
-// v5.3.1: 現行ゲートウェイRPC対応版を旧PWAキャッシュから分離するためキャッシュ世代を更新。
-const SERVICE_WORKER_VERSION = '5.3.1';
-const CACHE_NAME = 'mahjong-tools-v5.3.1';
+// v5.3.2: 現行ゲートウェイRPC対応版を旧PWAキャッシュから分離するためキャッシュ世代を更新。
+const SERVICE_WORKER_VERSION = '5.3.2';
+const CACHE_NAME = 'mahjong-tools-v5.3.2';
 
 const ASSETS_TO_CACHE = [
   './',

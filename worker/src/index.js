@@ -1,5 +1,5 @@
 const SERVICE_NAME = 'mahjong-paipu-proxy';
-const SERVICE_VERSION = '5.3.1';
+const SERVICE_VERSION = '5.3.2';
 const DEFAULT_ALLOWED_ORIGIN = 'https://8h4f6g6dgf-hub.github.io';
 const REQUEST_TIMEOUT_MS = 30000;
 const MAX_PAYLOAD_BYTES = 6 * 1024 * 1024;
@@ -9,19 +9,22 @@ const CURRENT_LIQI_CLIENT_VERSION = 'web-0.16.206';
 const AUTH_SECRET_NAME = 'MAJSOUL_OAUTH2_CREDENTIALS';
 const AUTH_STATES = Object.freeze({
   SECRET_NOT_CONFIGURED: 'SECRET_NOT_CONFIGURED', SECRET_FORMAT_INVALID: 'SECRET_FORMAT_INVALID',
-  OAUTH_REQUEST_BUILD_FAILED: 'OAUTH_REQUEST_BUILD_FAILED', OAUTH_RPC_SENT: 'OAUTH_RPC_SENT',
+  OAUTH_PREFLIGHT_FAILED: 'OAUTH_PREFLIGHT_FAILED', OAUTH_REQUEST_BUILD_FAILED: 'OAUTH_REQUEST_BUILD_FAILED', OAUTH_RPC_SENT: 'OAUTH_RPC_SENT',
   OAUTH_RESPONSE_RECEIVED: 'OAUTH_RESPONSE_RECEIVED', OAUTH_REJECTED: 'OAUTH_REJECTED',
-  SESSION_NOT_ESTABLISHED: 'SESSION_NOT_ESTABLISHED', AUTHENTICATED: 'AUTHENTICATED',
+  OAUTH_TOKEN_EXPIRED: 'OAUTH_TOKEN_EXPIRED', CLIENT_VERSION_MISMATCH: 'CLIENT_VERSION_MISMATCH',
+  SESSION_NOT_ESTABLISHED: 'SESSION_NOT_ESTABLISHED', SESSION_ESTABLISHMENT_FAILED: 'SESSION_ESTABLISHMENT_FAILED', AUTHENTICATED: 'AUTHENTICATED',
+  FETCH_GAME_RECORD_REACHED: 'FETCH_GAME_RECORD_REACHED',
   FETCH_GAME_RECORD_FAILED: 'FETCH_GAME_RECORD_FAILED', PAIPU_FETCH_SUCCEEDED: 'PAIPU_FETCH_SUCCEEDED'
 });
 
 function safeAuthDiagnostic(overrides = {}) {
-  return { authStage: 'SECRET_LOADING', authState: AUTH_STATES.SECRET_NOT_CONFIGURED, oauthRpcName: '.lq.Lobby.oauth2Login', oauthResponseReceived: false, sessionEstablished: false, fetchGameRecordReached: false, safeErrorCode: null, safeErrorMessage: null, nextAction: 'Worker Secretを登録してください', ...overrides };
+  return { authStage: 'SECRET_LOADING', authState: AUTH_STATES.SECRET_NOT_CONFIGURED, oauthRpcName: '.lq.Lobby.prepareLogin', oauthRequestBuilt: false, oauthResponseReceived: false, sessionEstablished: false, fetchGameRecordReached: false, safeErrorCode: null, safeErrorMessage: null, nextAction: 'Worker Secretを登録してください', confirmedAuthFlowVersion: 'route-prepare-login-v1', confirmedSecretSchema: ['flowVersion', 'connectionType', 'clientVersionString', 'providerType', 'prepareLoginToken'], implementationEvidence: ['current Chrome sanitized HAR', '.lq.Route.requestConnection', '.lq.Lobby.prepareLogin', '.lq.Route.heartbeat', 'jp-WebGL-release-4.0.11(12)'], ...overrides };
 }
 
 function classifyOauthError(rpcError) {
   const officialCode = rpcError && Number.isInteger(rpcError.code) ? rpcError.code : null;
   const message = String(rpcError && rpcError.message || '').toLowerCase();
+  if (officialCode === 151) return { code: 'MAJSOUL_151_LEGACY_FLOW_REJECTED', message: '現行Gatewayが旧oauth2Loginフローを拒否しました', nextAction: '現行prepareLogin形式のSecretを再登録してください' };
   if (/expir|期限/.test(message)) return { code: officialCode == null ? 'TOKEN_EXPIRED' : 'MAJSOUL_' + officialCode + '_TOKEN_EXPIRED', message: 'OAuthトークンの期限が切れています', nextAction: '認証Secretを再取得して登録し直してください' };
   if (/token|credential|認証/.test(message)) return { code: officialCode == null ? 'OAUTH_TOKEN_INVALID' : 'MAJSOUL_' + officialCode + '_TOKEN_INVALID', message: 'OAuthトークンが無効です', nextAction: '認証Secretを再取得して登録し直してください' };
   if (/account|user|アカウント/.test(message)) return { code: officialCode == null ? 'ACCOUNT_MISMATCH' : 'MAJSOUL_' + officialCode + '_ACCOUNT_MISMATCH', message: '認証情報とアカウントが一致しません', nextAction: '同じアカウントで認証Secretを再取得してください' };
@@ -144,9 +147,21 @@ function parseAuthSecret(env) {
   if (!env || !env[AUTH_SECRET_NAME]) return null;
   try {
     const value = JSON.parse(env[AUTH_SECRET_NAME]);
-    if (!Number.isInteger(value.type) || value.type < 0 || value.type > 255 || typeof value.accessToken !== 'string' || !value.accessToken) return null;
-    return { type: value.type, accessToken: value.accessToken };
+    if (value.flowVersion !== 'route-prepare-login-v1' || !Number.isInteger(value.connectionType) || typeof value.clientVersionString !== 'string' || !value.clientVersionString || !Number.isInteger(value.providerType) || typeof value.prepareLoginToken !== 'string' || !value.prepareLoginToken) return null;
+    return { flowVersion: value.flowVersion, connectionType: value.connectionType, clientVersionString: value.clientVersionString, providerType: value.providerType, prepareLoginToken: value.prepareLoginToken };
   } catch (_) { return null; }
+}
+
+function buildRequestConnectionRequest(auth, requestId) {
+  return buildNamedRpcRequest('.lq.Route.requestConnection', new Uint8Array([
+    ...encodeVarintField(2, auth.connectionType), ...encodeStringField(3, auth.clientVersionString), ...encodeVarintField(4, Math.floor(Date.now() / 1000))
+  ]), requestId);
+}
+
+function buildPrepareLoginRequest(auth, requestId) {
+  return buildNamedRpcRequest('.lq.Lobby.prepareLogin', new Uint8Array([
+    ...encodeStringField(1, auth.prepareLoginToken), ...encodeVarintField(2, auth.providerType)
+  ]), requestId);
 }
 
 function buildOauth2CheckRequest(auth, requestId) {
@@ -317,22 +332,22 @@ function parseGenericRpcResponse(bytes, requestId) {
 }
 
 async function authenticatedFetchRecord(gatewayUrl, auth, paipuId, clientVersion) {
-  // v5.3.1: 認証値を出さず、各RPC応答を受けた直後に段階別の安全診断へ変換する。
+  // v5.3.2: 現行HARで確認した requestConnection → prepareLogin → fetchGameRecord を同一Socketで実行する。
   let diagnostic = safeAuthDiagnostic({ authStage: 'OAUTH_REQUEST_BUILD', authState: AUTH_STATES.OAUTH_REQUEST_BUILD_FAILED, nextAction: 'Workerを再デプロイしてください' });
   let payloads;
-  try { payloads = [buildOauth2CheckRequest(auth, 1), buildOauth2LoginRequest(auth, clientVersion, 2), buildRpcRequest(paipuId, clientVersion, 3)]; }
+  try { payloads = [buildRequestConnectionRequest(auth, 1), buildPrepareLoginRequest(auth, 2), buildRpcRequest(paipuId, clientVersion, 3)]; }
   catch (_) { throw safeAuthError(AUTH_STATES.OAUTH_REQUEST_BUILD_FAILED, diagnostic, 500); }
-  diagnostic = safeAuthDiagnostic({ authStage: 'OAUTH_RPC', authState: AUTH_STATES.OAUTH_RPC_SENT, nextAction: 'OAuth応答を待っています' });
+  diagnostic = safeAuthDiagnostic({ authStage: 'CONNECTION_PREFLIGHT', authState: AUTH_STATES.OAUTH_RPC_SENT, oauthRpcName: '.lq.Route.requestConnection', oauthRequestBuilt: true, nextAction: '現行認証応答を待っています' });
   const frames = await websocketRpcSequence(gatewayUrl, payloads, 25000, (bytes, index) => {
     if (index > 1) return;
     const response = parseGenericRpcResponse(bytes, index + 1);
-    diagnostic = safeAuthDiagnostic({ authStage: index === 0 ? 'OAUTH_CHECK_RESPONSE' : 'OAUTH_LOGIN_RESPONSE', authState: AUTH_STATES.OAUTH_RESPONSE_RECEIVED, oauthRpcName: index === 0 ? '.lq.Lobby.oauth2Check' : '.lq.Lobby.oauth2Login', oauthResponseReceived: true, nextAction: 'OAuth応答を検証しています' });
+    diagnostic = safeAuthDiagnostic({ authStage: index === 0 ? 'REQUEST_CONNECTION_RESPONSE' : 'PREPARE_LOGIN_RESPONSE', authState: AUTH_STATES.OAUTH_RESPONSE_RECEIVED, oauthRpcName: index === 0 ? '.lq.Route.requestConnection' : '.lq.Lobby.prepareLogin', oauthRequestBuilt: true, oauthResponseReceived: true, nextAction: '現行認証応答を検証しています' });
     if (response.errorPresent) {
       const safe = classifyOauthError(response.error);
       diagnostic = { ...diagnostic, authState: AUTH_STATES.OAUTH_REJECTED, safeErrorCode: safe.code, safeErrorMessage: safe.message, nextAction: safe.nextAction };
       const error = safeAuthError(AUTH_STATES.OAUTH_REJECTED, diagnostic); error.rpcCode = response.error.code; throw error;
     }
-    if (index === 1) diagnostic = safeAuthDiagnostic({ authStage: 'SESSION_ESTABLISHED', authState: AUTH_STATES.AUTHENTICATED, oauthResponseReceived: true, sessionEstablished: true, nextAction: 'fetchGameRecordを実行します' });
+    if (index === 1) diagnostic = safeAuthDiagnostic({ authStage: 'SESSION_ESTABLISHED', authState: AUTH_STATES.AUTHENTICATED, oauthRpcName: '.lq.Lobby.prepareLogin', oauthRequestBuilt: true, oauthResponseReceived: true, sessionEstablished: true, nextAction: 'fetchGameRecordを実行します' });
   });
   if (!diagnostic.sessionEstablished) throw safeAuthError(AUTH_STATES.SESSION_NOT_ESTABLISHED, { ...diagnostic, authStage: 'SESSION_ESTABLISHMENT', authState: AUTH_STATES.SESSION_NOT_ESTABLISHED, safeErrorCode: 'SESSION_NOT_ESTABLISHED', safeErrorMessage: 'OAuth応答後にセッションを確立できませんでした', nextAction: '認証Secretを再取得して登録し直してください' });
   try { return { parsed: parseRpcResponse(frames[2], 3), rpcCode: 0, authDiagnostic: { ...diagnostic, authStage: 'FETCH_GAME_RECORD', fetchGameRecordReached: true } }; }
@@ -414,11 +429,16 @@ export default {
     try {
       if (request.method === 'OPTIONS') { if (origin && origin !== allowedOrigin) return errorResponse(request, env, 403, 'ORIGIN_NOT_ALLOWED', '許可されていないOriginです'); return new Response(null, { status: 204, headers: corsHeaders(request, env) }); }
       if (request.method !== 'GET') return errorResponse(request, env, 405, 'METHOD_NOT_ALLOWED', 'GETのみ利用できます');
-      if (url.pathname === '/health') return jsonResponse(request, env, { ok: true, service: SERVICE_NAME, version: SERVICE_VERSION, authStage: env && env[AUTH_SECRET_NAME] ? 'SECRET_LOADED' : 'SECRET_LOADING', authState: env && env[AUTH_SECRET_NAME] ? null : AUTH_STATES.SECRET_NOT_CONFIGURED, secretConfigured: Boolean(env && env[AUTH_SECRET_NAME]), safeErrorCode: null, nextAction: env && env[AUTH_SECRET_NAME] ? '共有URLでOAuth認証診断を実行してください' : 'Worker Secretを登録してください' });
+      if (url.pathname === '/health') {
+        const secretConfigured = Boolean(env && env[AUTH_SECRET_NAME]);
+        const secretSchemaValid = secretConfigured && Boolean(parseAuthSecret(env));
+        // v5.3.2: Secretの中身を返さず、現行prepareLoginスキーマへ更新済みかだけを確認できるようにする。
+        return jsonResponse(request, env, { ok: true, service: SERVICE_NAME, version: SERVICE_VERSION, authStage: secretConfigured ? 'SECRET_VALIDATION' : 'SECRET_LOADING', authState: !secretConfigured ? AUTH_STATES.SECRET_NOT_CONFIGURED : secretSchemaValid ? 'SECRET_FORMAT_VALID' : AUTH_STATES.SECRET_FORMAT_INVALID, secretConfigured, secretSchemaValid, safeErrorCode: secretConfigured && !secretSchemaValid ? AUTH_STATES.SECRET_FORMAT_INVALID : null, nextAction: !secretConfigured || !secretSchemaValid ? '現行HARから認証Secretを登録してください' : '共有URLで現行認証フローを検証してください' });
+      }
       if (url.pathname === '/api/paipu') return handlePaipu(request, env, url);
       return errorResponse(request, env, 404, 'NOT_FOUND', 'エンドポイントが見つかりません');
     } catch (_) { return errorResponse(request, env, 500, 'INTERNAL_ERROR', 'Worker内部でエラーが発生しました'); }
   }
 };
 
-export { AUTH_STATES, analyzeCurrentClient, buildOauth2CheckRequest, buildOauth2LoginRequest, buildRpcRequest, extractPaipuId, extractUnityConfig, fetchMajsoulPaipu, parseAuthSecret, parseRpcResponse, validatePaipuId };
+export { AUTH_STATES, analyzeCurrentClient, buildPrepareLoginRequest, buildRequestConnectionRequest, buildRpcRequest, extractPaipuId, extractUnityConfig, fetchMajsoulPaipu, parseAuthSecret, parseRpcResponse, validatePaipuId };
