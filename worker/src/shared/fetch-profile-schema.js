@@ -31,6 +31,8 @@ export function normalizeFetchProfile(profile) {
     field2Source: profile.field2Source || FETCH_RPC,
     routeContextRole: profile.routeContextRole || 'requestConnectionRouteContext',
     fetchClientContextRole: profile.fetchClientContextRole || 'fetchGameRecordClientContext',
+    clientVersionSourceRole: profile.clientVersionSourceRole || 'fetchGameRecordClientContext',
+    clientVersionSourceRpc: profile.clientVersionSourceRpc || FETCH_RPC,
     requestIdPolicy: profile.requestIdPolicy || 'sequential-per-websocket',
     sameConnectionRequired: profile.sameConnectionRequired !== false,
     prepareLoginRequired: profile.prepareLoginRequired !== false,
@@ -72,7 +74,7 @@ export function validateFetchProfile(profile) {
   return { profile: normalized, ...conditions, requestSemanticMatched, fetchGameRecordProfileValid: profileSchemaValid, connectionContextStatus: CONNECTION_CONTEXT_PENDING, connectionContextMatched: null, remainingMismatchCategory };
 }
 
-export function createFetchProfile({ messageType, envelopeFields, requestFields, fetchClientContext, sourceConnectionIndex, sourceMetadata }) {
+export function createFetchProfile({ messageType, envelopeFields, requestFields, fetchClientContext, sourceConnectionIndex, sourceMetadata, sessionTimeline = null }) {
   const clientVersionIsRouteId = /^jp-\d+$/i.test(fetchClientContext || '');
   const clientVersionValidated = Boolean(fetchClientContext) && !fetchClientContext.includes('\uFFFD') && !clientVersionIsRouteId;
   return normalizeFetchProfile({
@@ -83,6 +85,6 @@ export function createFetchProfile({ messageType, envelopeFields, requestFields,
     sameConnectionRequired: true, prepareLoginRequired: true, connectionContextValidated: true,
     clientVersionSourceRole: 'fetchGameRecordClientContext', clientVersionSourceRpc: FETCH_RPC, clientVersionValidated, clientVersionIsRouteId,
     clientVersionSemanticMatch: clientVersionValidated, field1SourceValidated: true, field2SourceValidated: true,
-    semanticValidated: clientVersionValidated, sourceMetadata, validated: clientVersionValidated
+    semanticValidated: clientVersionValidated, sourceMetadata, sessionTimeline, validated: clientVersionValidated
   });
 }

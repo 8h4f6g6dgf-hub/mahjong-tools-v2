@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import worker, { buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, classifyRpcFailure, compareFetchRequestToProfile, extractPaipuId, extractUnityConfig, inspectRpcFrame, parseAuthSecret, parseRpcResponse } from './index.js';
+import worker, { buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, classifyRpcFailure, compareFetchRequestToProfile, extractPaipuId, extractUnityConfig, inspectRpcFrame, parseAuthSecret, parseRpcResponse, websocketRpcSequence } from './index.js';
 import { CONNECTION_CONTEXT_PENDING, createFetchProfile, validateFetchProfile } from './shared/fetch-profile-schema.js';
+import { buildSessionRuntimePlan, createSessionTimeline, legacySessionTimeline, safeDelayMs, validateSessionTimeline } from './shared/session-timeline-schema.js';
 
 function field(id, value) {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
@@ -111,6 +112,121 @@ test('prepareLogin前提が欠ければ具体的カテゴリで停止する', ()
   const validation = validateFetchProfile({ ...fetchProfile, prepareLoginRequired: false });
   assert.equal(validation.requestSemanticMatched, false);
   assert.equal(validation.remainingMismatchCategory, 'PREPARE_LOGIN_PREREQUISITE_MISSING');
+});
+
+const sessionEvents = [
+  { direction: 'client-to-server', eventType: 'request', rpc: '.lq.Lobby.prepareLogin', requestId: 2, timestampMs: 1000, payloadSize: 10 },
+  { direction: 'server-to-client', eventType: 'response', rpc: '.lq.Lobby.prepareLogin', requestId: 2, timestampMs: 1100, payloadSize: 8 },
+  { direction: 'server-to-client', eventType: 'notify', rpc: '.lq.NotifyAccountUpdate', requestId: null, timestampMs: 1180, payloadSize: 12 },
+  { direction: 'client-to-server', eventType: 'request', rpc: '.lq.Lobby.fetchGameRecord', requestId: 3, timestampMs: 1300, payloadSize: 20 }
+];
+
+test('HARタイムラインからprepareLoginとfetchGameRecord間を抽出する', () => {
+  const profile = createSessionTimeline(sessionEvents);
+  assert.equal(profile.prepareLoginToFetchDelayMs, 200);
+  assert.equal(profile.events.length, 3);
+  assert.equal(profile.requiredServerEvent, '.lq.NotifyAccountUpdate');
+  assert.equal(profile.requestIdDeltaBeforeFetch, 1);
+});
+
+test('heartbeat・push・notify有無をHARイベントだけから判定する', () => {
+  const heartbeatEvents = sessionEvents.toSpliced(2, 0, { direction: 'client-to-server', eventType: 'request', rpc: '.lq.Route.heartbeat', requestId: 3, timestampMs: 1150, payloadSize: 6 }).map((item) => item.rpc === '.lq.Lobby.fetchGameRecord' ? { ...item, requestId: 4 } : item);
+  const profile = createSessionTimeline(heartbeatEvents);
+  assert.equal(profile.heartbeatRequired, true);
+  assert.equal(profile.requiredServerEvent, '.lq.NotifyAccountUpdate');
+  assert.equal(profile.requestIdDeltaBeforeFetch, 2);
+});
+
+test('Session Timeline Schemaと待機上限を検証する', () => {
+  const validation = validateSessionTimeline(createSessionTimeline(sessionEvents));
+  assert.equal(validation.sessionTimelineProfileValid, true);
+  assert.equal(safeDelayMs(999999), 3000);
+});
+
+test('旧SecretはSession Profileなしでも無効化しない', () => {
+  const validation = validateSessionTimeline(undefined), plan = buildSessionRuntimePlan(validation);
+  assert.equal(validation.sessionTimelineProfileValid, false);
+  assert.deepEqual(plan.profile, legacySessionTimeline());
+  assert.equal(plan.strategy, 'legacy-response-trigger');
+  assert.equal(plan.blockedCode, null);
+});
+
+test('HARで確認されたheartbeatは送信値未確認なら安全に停止する', () => {
+  const profile = { ...createSessionTimeline(sessionEvents), heartbeatRequired: true, requiredServerEvent: null };
+  assert.equal(buildSessionRuntimePlan(validateSessionTimeline(profile)).blockedCode, 'HEARTBEAT_FAILED');
+});
+
+test('HARで確認された中間RPCは入力未確認なら安全に停止する', () => {
+  const profile = { ...createSessionTimeline(sessionEvents), requiredIntermediateRpc: '.lq.Lobby.sessionInit', requiredServerEvent: null };
+  assert.equal(buildSessionRuntimePlan(validateSessionTimeline(profile)).blockedCode, 'INTERMEDIATE_RPC_FAILED');
+});
+
+test('client contextの役割とRPC出所をProfileから維持する', () => {
+  const credential = JSON.stringify({ flowVersion: 'route-prepare-login-v1', connectionType: 2, routeContextString: 'route-context', providerType: 21, prepareLoginToken: 'local-test-token', fetchGameRecordProfile: fetchProfile });
+  const auth = parseAuthSecret({ MAJSOUL_OAUTH2_CREDENTIALS: credential });
+  assert.equal(auth.fetchGameRecordProfile.clientVersionSourceRole, 'fetchGameRecordClientContext');
+  assert.equal(auth.fetchGameRecordProfile.clientVersionSourceRpc, '.lq.Lobby.fetchGameRecord');
+});
+
+class MockWebSocket {
+  static behavior = null;
+  constructor() { this.listeners = new Map(); this.sent = []; queueMicrotask(() => this.emit('open', {})); }
+  addEventListener(name, listener) { if (!this.listeners.has(name)) this.listeners.set(name, []); this.listeners.get(name).push(listener); }
+  emit(name, event) { for (const listener of this.listeners.get(name) || []) listener(event); }
+  send(payload) { this.sent.push(payload); MockWebSocket.behavior?.(this, payload, this.sent.length - 1); }
+  close() {}
+}
+
+async function withMockWebSocket(behavior, run) {
+  const original = globalThis.WebSocket; globalThis.WebSocket = MockWebSocket; MockWebSocket.behavior = behavior;
+  try { return await run(); } finally { globalThis.WebSocket = original; MockWebSocket.behavior = null; }
+}
+const mockPayload = (id) => new Uint8Array([2, id, 0]);
+const mockResponse = (id) => new Uint8Array([3, id, 0, 0]);
+
+test('Mock WebSocketはprepareLogin応答後の待機だけで次RPCへ進む', async () => {
+  const before = [];
+  const responses = await withMockWebSocket((socket, payload) => queueMicrotask(() => socket.emit('message', { data: mockResponse(payload[1]).buffer })), () => websocketRpcSequence('wss://example.test', [mockPayload(1), mockPayload(2), mockPayload(3)], 100, null, { beforeSend: async (index) => before.push(index) }));
+  assert.equal(responses.length, 3); assert.deepEqual(before, [1, 2]);
+});
+
+test('Mock WebSocketのheartbeat戦略は確認済みhookだけを実行する', async () => {
+  let heartbeatSent = false;
+  await withMockWebSocket((socket, payload) => queueMicrotask(() => socket.emit('message', { data: mockResponse(payload[1]).buffer })), () => websocketRpcSequence('wss://example.test', [mockPayload(1), mockPayload(2), mockPayload(3)], 100, null, { beforeSend: async (index) => { if (index === 2) heartbeatSent = true; } }));
+  assert.equal(heartbeatSent, true);
+});
+
+test('Mock WebSocketはserver pushを応答と混同せず観測する', async () => {
+  let unmatched = 0;
+  await withMockWebSocket((socket, payload, index) => queueMicrotask(() => { if (index === 1) socket.emit('message', { data: new Uint8Array([1, 10, 0]).buffer }); socket.emit('message', { data: mockResponse(payload[1]).buffer }); }), () => websocketRpcSequence('wss://example.test', [mockPayload(1), mockPayload(2), mockPayload(3)], 100, null, { onUnmatchedMessage: () => { unmatched += 1; } }));
+  assert.equal(unmatched, 1);
+});
+
+test('Mock WebSocketは中間RPC hook後にfetchへ進む', async () => {
+  const actions = [];
+  await withMockWebSocket((socket, payload) => queueMicrotask(() => socket.emit('message', { data: mockResponse(payload[1]).buffer })), () => websocketRpcSequence('wss://example.test', [mockPayload(1), mockPayload(2), mockPayload(3)], 100, null, { beforeSend: async (index) => { if (index === 2) actions.push('intermediate'); } }));
+  assert.deepEqual(actions, ['intermediate']);
+});
+
+test('Mock WebSocketは必須server event未受信エラーを伝播する', async () => {
+  await assert.rejects(() => withMockWebSocket((socket, payload) => queueMicrotask(() => socket.emit('message', { data: mockResponse(payload[1]).buffer })), () => websocketRpcSequence('wss://example.test', [mockPayload(1), mockPayload(2), mockPayload(3)], 100, null, { beforeSend: async (index) => { if (index === 2) throw new Error('REQUIRED_SERVER_EVENT_NOT_RECEIVED'); } })), /REQUIRED_SERVER_EVENT_NOT_RECEIVED/);
+});
+
+test('Mock WebSocketはrequest ID不一致を無視して正しい応答を待つ', async () => {
+  let unmatched = 0;
+  const responses = await withMockWebSocket((socket, payload) => queueMicrotask(() => { socket.emit('message', { data: mockResponse(99).buffer }); socket.emit('message', { data: mockResponse(payload[1]).buffer }); }), () => websocketRpcSequence('wss://example.test', [mockPayload(1), mockPayload(2)], 100, null, { onUnmatchedMessage: () => { unmatched += 1; } }));
+  assert.equal(responses.length, 2); assert.equal(unmatched, 2);
+});
+
+test('Mock WebSocketはfetch成功後もread/detailへ連続request IDで進む', async () => {
+  const sentIds = [];
+  const responses = await withMockWebSocket((socket, payload) => { sentIds.push(payload[1]); queueMicrotask(() => socket.emit('message', { data: mockResponse(payload[1]).buffer })); }, () => websocketRpcSequence('wss://example.test', [1, 2, 3, 4, 5].map(mockPayload), 100));
+  assert.equal(responses.length, 5); assert.deepEqual(sentIds, [1, 2, 3, 4, 5]);
+});
+
+test('fetchGameRecordの1004はSession条件一致後の上流拒否として分類可能', () => {
+  const failure = classifyRpcFailure('.lq.Lobby.fetchGameRecord', 1004);
+  assert.equal(failure.stage, 'FETCH_GAME_RECORD'); assert.equal(failure.code, 'MAJSOUL_1004');
 });
 
 test('route context混入時は必ず具体的な残差カテゴリで停止する', () => {

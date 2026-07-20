@@ -1,6 +1,7 @@
-// v5.3.7: 共有スキーマでRPC名・方向・field・接続関係を検証し、認証値を表示せずSecretへ登録する。
+// v5.3.8: 共有スキーマでRPC構造とSession Timelineを検証し、認証値を表示せずSecretへ登録する。
 import { spawnSync } from 'node:child_process';
 import { createFetchProfile } from '../src/shared/fetch-profile-schema.js';
+import { createSessionTimeline } from '../src/shared/session-timeline-schema.js';
 
 const chunks = [];
 for await (const chunk of process.stdin) chunks.push(chunk);
@@ -53,21 +54,31 @@ for (const entry of har?.log?.entries || []) {
 let connection = null, prepareLogin = null, fetchGameRecordProfile = null;
 const responseMatched = new Set();
 for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
-  const pending = new Map();
+  const pending = new Map(), timelineEvents = [];
   for (const message of entry._webSocketMessages || entry.webSocketMessages || []) {
     if (typeof message.data !== 'string') continue;
     for (const bytes of candidates(message.data)) {
       try {
         const requestId = bytes[1] | (bytes[2] << 8);
+        const timestampMs = Number.isFinite(Number(message.time)) ? Number(message.time) * 1000 : Date.parse(message.timestamp || entry.startedDateTime || '') || 0;
         if (bytes[0] === 3 && message.type === 'receive' && pending.has(requestId)) {
+          timelineEvents.push({ direction: 'server-to-client', eventType: 'response', rpc: pending.get(requestId), requestId, timestampMs, payloadSize: Math.max(0, bytes.length - 3) });
           responseMatched.add(`${connectionIndex}:${pending.get(requestId)}`);
           pending.delete(requestId);
-          continue;
+          break;
+        }
+        if (message.type === 'receive') {
+          let rpc = null;
+          try { const offset = bytes[0] === 1 ? 1 : 0, notifyEnvelope = fields(bytes.subarray(offset)); rpc = Buffer.from(notifyEnvelope.get(1)?.[0] || []).toString('utf8') || null; } catch (_) {}
+          timelineEvents.push({ direction: 'server-to-client', eventType: bytes.length ? (rpc ? 'notify' : 'push') : 'empty', rpc, requestId: null, timestampMs, payloadSize: bytes.length });
+          break;
         }
         if (bytes[0] !== 2 || message.type !== 'send') continue;
         const envelope = fields(bytes.subarray(3));
         const method = Buffer.from(envelope.get(1)?.[0] || []).toString('utf8');
+        if (!method) continue;
         pending.set(requestId, method);
+        timelineEvents.push({ direction: 'client-to-server', eventType: 'request', rpc: method, requestId, timestampMs, payloadSize: Math.max(0, bytes.length - 3) });
         const body = fields(envelope.get(2)?.[0] || Buffer.alloc(0));
         if (method === '.lq.Route.requestConnection') {
           const connectionType = body.get(2)?.[0], routeContextString = Buffer.from(body.get(3)?.[0] || []).toString('utf8');
@@ -94,9 +105,12 @@ for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
           const validated = method === '.lq.Lobby.fetchGameRecord' && envelopeFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2' && requestFields.map((item) => `${item.field}:${item.wire}`).join(',') === '1:2,2:2' && requestFields.every((item) => item.source === 'completePaipuId' || item.source === 'fetchClientContext');
           if (validated && clientVersionValidated && !clientVersionIsRouteId) fetchGameRecordProfile = createFetchProfile({ messageType: method, envelopeFields, requestFields, fetchClientContext, sourceConnectionIndex: connectionIndex, sourceMetadata: [{ sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 1, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'completePaipuId' }, { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 2, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'fetchClientContext' }] });
         }
+        break;
       } catch (_) { /* 候補形式が違う場合は次を試す。認証値は出力しない。 */ }
     }
   }
+  const sessionTimeline = createSessionTimeline(timelineEvents);
+  if (fetchGameRecordProfile && fetchGameRecordProfile.sourceConnectionIndex === connectionIndex && sessionTimeline) fetchGameRecordProfile.sessionTimeline = sessionTimeline;
 }
 const responseSequenceMatched = connection && prepareLogin && fetchGameRecordProfile && ['.lq.Route.requestConnection', '.lq.Lobby.prepareLogin', '.lq.Lobby.fetchGameRecord'].every((rpc) => responseMatched.has(`${connection.connectionIndex}:${rpc}`));
 if (!connection || !prepareLogin || !fetchGameRecordProfile?.validated || !responseSequenceMatched) {

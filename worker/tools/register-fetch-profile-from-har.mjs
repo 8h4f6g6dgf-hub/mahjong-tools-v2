@@ -1,6 +1,7 @@
-// v5.3.7: 認証済みセッションのHARから共有スキーマでfetchGameRecordの構造と値の役割を登録する。
+// v5.3.8: 認証済みHARからfetchGameRecord構造とSession Timelineを安全に登録する。
 import { spawnSync } from 'node:child_process';
 import { createFetchProfile } from '../src/shared/fetch-profile-schema.js';
+import { createSessionTimeline } from '../src/shared/session-timeline-schema.js';
 
 const chunks = [];
 for await (const chunk of process.stdin) chunks.push(chunk);
@@ -33,17 +34,32 @@ function candidates(data) {
 
 let profile = null, fetchResponseReceived = false;
 for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
-  const pendingFetchIds = new Set();
+  const pendingFetchIds = new Set(), pendingRpc = new Map(), timelineEvents = [];
   for (const message of entry._webSocketMessages || entry.webSocketMessages || []) {
     if (typeof message.data !== 'string') continue;
     for (const bytes of candidates(message.data)) {
       try {
         const requestId = bytes[1] | (bytes[2] << 8);
-        if (bytes[0] === 3 && message.type === 'receive' && pendingFetchIds.has(requestId)) { fetchResponseReceived = true; continue; }
+        const timestampMs = Number.isFinite(Number(message.time)) ? Number(message.time) * 1000 : Date.parse(message.timestamp || entry.startedDateTime || '') || 0;
+        if (bytes[0] === 3 && message.type === 'receive') {
+          const rpc = pendingRpc.get(requestId) || null;
+          timelineEvents.push({ direction: 'server-to-client', eventType: 'response', rpc, requestId, timestampMs, payloadSize: Math.max(0, bytes.length - 3) });
+          if (pendingFetchIds.has(requestId)) fetchResponseReceived = true;
+          pendingRpc.delete(requestId);
+          break;
+        }
+        if (message.type === 'receive') {
+          let rpc = null; try { rpc = Buffer.from(fields(bytes.subarray(bytes[0] === 1 ? 1 : 0)).find((item) => item.field === 1)?.value || []).toString('utf8') || null; } catch (_) {}
+          timelineEvents.push({ direction: 'server-to-client', eventType: bytes.length ? (rpc ? 'notify' : 'push') : 'empty', rpc, requestId: null, timestampMs, payloadSize: bytes.length });
+          break;
+        }
         if (bytes[0] !== 2 || message.type !== 'send') continue;
         const envelope = fields(bytes.subarray(3));
         const method = Buffer.from(envelope.find((item) => item.field === 1)?.value || []).toString('utf8');
-        if (method !== '.lq.Lobby.fetchGameRecord') continue;
+        if (!method) continue;
+        pendingRpc.set(requestId, method);
+        timelineEvents.push({ direction: 'client-to-server', eventType: 'request', rpc: method, requestId, timestampMs, payloadSize: Math.max(0, bytes.length - 3) });
+        if (method !== '.lq.Lobby.fetchGameRecord') break;
         pendingFetchIds.add(requestId);
         const body = fields(envelope.find((item) => item.field === 2)?.value || Buffer.alloc(0));
         const envelopeFields = envelope.map(({ field, wire }) => ({ field, wire }));
@@ -60,11 +76,14 @@ for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
           sourceMetadata: [
             { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 1, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'completePaipuId' },
             { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 2, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'fetchClientContext' }
-          ]
+          ], sessionTimeline: null
         });
+        break;
       } catch (_) { /* 別表現の候補は無視し、認証値やPayloadは出力しない。 */ }
     }
   }
+  const sessionTimeline = createSessionTimeline(timelineEvents);
+  if (profile && profile.sourceConnectionIndex === connectionIndex && sessionTimeline) profile.sessionTimeline = sessionTimeline;
 }
 
 if (!profile || !fetchResponseReceived) {
