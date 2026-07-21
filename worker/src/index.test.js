@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import worker, { buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, classifyRpcFailure, compareFetchRequestToProfile, extractPaipuId, extractUnityConfig, inspectRpcFrame, parseAuthSecret, parseRpcResponse, websocketRpcSequence } from './index.js';
+import worker, { authenticatedFetchRecord, buildGameRecordsDetailRequest, buildPrepareLoginRequest, buildReadGameRecordRequest, buildRequestConnectionRequest, buildRpcRequest, classifyRpcFailure, compareFetchRequestBinary, compareFetchRequestToProfile, extractPaipuId, extractUnityConfig, inspectRpcFrame, parseAuthSecret, parseRpcResponse, websocketRpcSequence } from './index.js';
 import { CONNECTION_CONTEXT_PENDING, createFetchProfile, validateFetchProfile } from './shared/fetch-profile-schema.js';
+import { compareProtobufBinary, inspectBinaryFields } from './shared/protobuf-binary-compare.js';
 import { buildSessionRuntimePlan, createSessionTimeline, legacySessionTimeline, safeDelayMs, validateSessionTimeline } from './shared/session-timeline-schema.js';
 
 function field(id, value) {
@@ -41,6 +42,28 @@ test('fetchGameRecordリクエストが現行HAR構造と完全一致する', ()
   assert.equal(score.fieldMatchScore, 100);
   assert.equal(score.messageMatchScore, 100);
   assert.equal(score.fetchGameRecordRequestValidated, true);
+});
+
+test('再構築したHAR Profileと送信Binaryが一致する', () => {
+  const request = buildRpcRequest('240101-test_abc', 'current-fetch-context', 3, fetchProfile);
+  const comparison = compareFetchRequestBinary(request, fetchProfile, '240101-test_abc', 'current-fetch-context', 3);
+  assert.equal(comparison.payloadByteMatch, true);
+  assert.equal(comparison.protobufBinaryMatch, true);
+  assert.equal(comparison.encodeMatch, true);
+  assert.equal(comparison.harBinaryCompared, false);
+  assert.equal(comparison.binaryComparisonSource, 'profile-reconstructed-current-har-v2');
+});
+
+test('Binary差分とUnknown Fieldを値なしで特定する', () => {
+  const reference = new Uint8Array([...field(1, 'a'), ...field(2, 'b')]);
+  const actual = new Uint8Array([...field(1, 'a'), ...field(2, 'c'), ...varintField(9, 1)]);
+  const comparison = compareProtobufBinary(actual, reference, { knownFields: [1, 2] });
+  assert.equal(comparison.protobufBinaryMatch, false);
+  assert.equal(comparison.payloadLengthMatch, false);
+  assert.equal(comparison.unknownFieldCount, 1);
+  assert.match(comparison.unknownFieldSummary, /field 9\/wire 0/);
+  assert.doesNotMatch(comparison.binaryDiffSummary, /current-fetch-context|240101-test/);
+  assert.deepEqual(inspectBinaryFields(reference).map(({ field: id, wire }) => [id, wire]), [[1, 2], [2, 2]]);
 });
 
 test('Liqiレスポンスから牌譜dataを抽出する', () => {
@@ -149,6 +172,15 @@ test('旧SecretはSession Profileなしでも無効化しない', () => {
   assert.deepEqual(plan.profile, legacySessionTimeline());
   assert.equal(plan.strategy, 'legacy-response-trigger');
   assert.equal(plan.blockedCode, null);
+  assert.equal(plan.source, 'legacy');
+  assert.equal(plan.valid, false);
+});
+
+test('不正Session ProfileはTimingを一致扱いせずmissingにする', () => {
+  const plan = buildSessionRuntimePlan(validateSessionTimeline({ version: 'invalid', events: [] }));
+  assert.equal(plan.valid, false);
+  assert.equal(plan.source, 'missing');
+  assert.equal(plan.legacyReason, 'session-timeline-schema-invalid');
 });
 
 test('HARで確認されたheartbeatは送信値未確認なら安全に停止する', () => {
@@ -183,6 +215,8 @@ async function withMockWebSocket(behavior, run) {
 }
 const mockPayload = (id) => new Uint8Array([2, id, 0]);
 const mockResponse = (id) => new Uint8Array([3, id, 0, 0]);
+const rpcResponse = (id, rpc, body = new Uint8Array()) => new Uint8Array([3, id, 0, ...field(1, rpc), ...field(2, body)]);
+const testAuth = () => parseAuthSecret({ MAJSOUL_OAUTH2_CREDENTIALS: JSON.stringify({ flowVersion: 'route-prepare-login-v1', connectionType: 2, routeContextString: 'route-context', providerType: 21, prepareLoginToken: 'local-test-token', fetchGameRecordProfile: fetchProfile }) });
 
 test('Mock WebSocketはprepareLogin応答後の待機だけで次RPCへ進む', async () => {
   const before = [];
@@ -229,6 +263,30 @@ test('fetchGameRecordの1004はSession条件一致後の上流拒否として分
   assert.equal(failure.stage, 'FETCH_GAME_RECORD'); assert.equal(failure.code, 'MAJSOUL_1004');
 });
 
+test('fetchGameRecord Code1004後はread/detailを送信しない', async () => {
+  const sentIds = [];
+  await assert.rejects(() => withMockWebSocket((socket, payload) => {
+    const id = payload[1]; sentIds.push(id);
+    const rpc = id === 1 ? '.lq.Route.requestConnection' : id === 2 ? '.lq.Lobby.prepareLogin' : '.lq.Lobby.fetchGameRecord';
+    const errorBody = id === 3 ? new Uint8Array(field(1, new Uint8Array([8, 0xec, 0x07]))) : new Uint8Array();
+    queueMicrotask(() => socket.emit('message', { data: rpcResponse(id, rpc, errorBody).buffer }));
+  }, () => authenticatedFetchRecord('wss://example.test/gateway', testAuth(), '240101-test_abc')), (error) => error.authDiagnostic?.actualFailureCode === 'MAJSOUL_1004');
+  assert.deepEqual(sentIds, [1, 2, 3]);
+});
+
+test('fetchGameRecord Code0後はread/detailまで進む', async () => {
+  const sentIds = [], recordData = new Uint8Array([8, 1, 18, 2, 3, 4]);
+  const result = await withMockWebSocket((socket, payload) => {
+    const id = payload[1]; sentIds.push(id);
+    const rpc = ['unused', '.lq.Route.requestConnection', '.lq.Lobby.prepareLogin', '.lq.Lobby.fetchGameRecord', '.lq.Lobby.readGameRecord', '.lq.Lobby.fetchGameRecordsDetailV2'][id];
+    const body = id === 3 ? new Uint8Array(field(4, new Uint8Array(field(4, recordData)))) : new Uint8Array();
+    queueMicrotask(() => socket.emit('message', { data: rpcResponse(id, rpc, body).buffer }));
+  }, () => authenticatedFetchRecord('wss://example.test/gateway', testAuth(), '240101-test_abc'));
+  assert.deepEqual(sentIds, [1, 2, 3, 4, 5]);
+  assert.equal(result.authDiagnostic.readGameRecordReached, true);
+  assert.equal(result.authDiagnostic.fetchGameRecordsDetailReached, true);
+});
+
 test('route context混入時は必ず具体的な残差カテゴリで停止する', () => {
   const validation = validateFetchProfile({ ...fetchProfile, fetchClientContext: 'jp-2', clientVersionIsRouteId: true, clientVersionValidated: false, clientVersionSemanticMatch: false });
   assert.equal(validation.requestSemanticMatched, false);
@@ -273,6 +331,17 @@ test('詳細RPCのProtobuf EnvelopeからPayloadメタデータだけを安全�
   assert.equal(inspected.meta.payloadDetected, true);
   assert.equal(inspected.meta.payloadSize, payload.length);
   assert.deepEqual(inspected.meta.fieldNumbers, [2]);
+});
+
+test('応答BinaryのUnknown FieldとVarint Errorを安全に集計する', () => {
+  const encodedError = new Uint8Array([8, 0xec, 0x07]);
+  const body = new Uint8Array([...field(1, encodedError), ...varintField(9, 1)]);
+  const wrapper = new Uint8Array([...field(1, '.lq.Lobby.fetchGameRecord'), ...field(2, body)]);
+  const inspected = inspectRpcFrame(new Uint8Array([3, 3, 0, ...wrapper]), 3, '.lq.Lobby.fetchGameRecord');
+  assert.equal(inspected.meta.responseBinaryState, 'error-response');
+  assert.deepEqual(inspected.meta.errorVarintFields, [1]);
+  assert.equal(inspected.meta.responseUnknownFieldCount, 1);
+  assert.match(inspected.meta.responseUnknownFieldSummary, /field 9\/wire 0/);
 });
 
 test('healthはSecret値を返さず設定有無だけ返す', async () => {

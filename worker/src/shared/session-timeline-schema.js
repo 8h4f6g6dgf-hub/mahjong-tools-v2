@@ -35,5 +35,7 @@ export function buildSessionRuntimePlan(validation) {
   const profile = validation?.profile || legacySessionTimeline();
   const valid = Boolean(validation?.sessionTimelineProfileValid);
   const blockedCode = valid && profile.heartbeatRequired ? 'HEARTBEAT_FAILED' : valid && profile.requiredIntermediateRpc ? 'INTERMEDIATE_RPC_FAILED' : null;
-  return { profile, valid, strategy: valid ? 'har-timeline-plus-buffer' : 'legacy-response-trigger', delayMs: valid ? safeDelayMs(profile.prepareLoginToFetchDelayMs + 50) : 0, blockedCode };
+  const source = valid ? SESSION_TIMELINE_VERSION : validation?.sessionTimelineProfilePresent ? 'missing' : 'legacy';
+  const legacyReason = valid ? null : validation?.sessionTimelineProfilePresent ? 'session-timeline-schema-invalid' : 'profile-has-no-session-timeline';
+  return { profile, valid, source, legacyReason, strategy: valid ? 'har-timeline-plus-buffer' : 'legacy-response-trigger', delayMs: valid ? safeDelayMs(profile.prepareLoginToFetchDelayMs + 50) : 0, blockedCode };
 }

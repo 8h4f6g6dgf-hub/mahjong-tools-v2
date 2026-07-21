@@ -76,7 +76,9 @@ for (const [connectionIndex, entry] of (har?.log?.entries || []).entries()) {
           sourceMetadata: [
             { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 1, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'completePaipuId' },
             { sourceRpc: method, sourceDirection: 'request', sourceFieldNumber: 2, sourceMessageType: 'fetchGameRecordRequest', sourceConnectionIndex: connectionIndex, valueRole: 'fetchClientContext' }
-          ], sessionTimeline: null
+          ], sessionTimeline: null,
+          // v5.3.9: 値を保存せず、HAR requestの長さとfield構造だけをBinary比較基準にする。
+          binaryProfile: { requestLength: bytes.length, payloadLength: body.length, envelopeFieldOrder: envelopeFields.map((item) => `${item.field}:${item.wire}`), bodyFieldOrder: requestFields.map((item) => `${item.field}:${item.wire}`), unknownFieldCount: requestFields.filter((item) => ![1, 2].includes(item.field)).length, validated: true }
         });
         break;
       } catch (_) { /* 別表現の候補は無視し、認証値やPayloadは出力しない。 */ }

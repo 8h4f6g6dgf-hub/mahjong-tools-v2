@@ -1,6 +1,6 @@
-// v5.3.8: Session Timeline検証版を旧PWAキャッシュから分離するため更新。
-const SERVICE_WORKER_VERSION = '5.3.8';
-const CACHE_NAME = 'mahjong-tools-v5.3.8';
+// v5.3.9: Binary比較版を旧PWAキャッシュから分離するため更新。
+const SERVICE_WORKER_VERSION = '5.3.9';
+const CACHE_NAME = 'mahjong-tools-v5.3.9';
 
 const ASSETS_TO_CACHE = [
   './',

@@ -74,7 +74,7 @@ export function validateFetchProfile(profile) {
   return { profile: normalized, ...conditions, requestSemanticMatched, fetchGameRecordProfileValid: profileSchemaValid, connectionContextStatus: CONNECTION_CONTEXT_PENDING, connectionContextMatched: null, remainingMismatchCategory };
 }
 
-export function createFetchProfile({ messageType, envelopeFields, requestFields, fetchClientContext, sourceConnectionIndex, sourceMetadata, sessionTimeline = null }) {
+export function createFetchProfile({ messageType, envelopeFields, requestFields, fetchClientContext, sourceConnectionIndex, sourceMetadata, sessionTimeline = null, binaryProfile = null }) {
   const clientVersionIsRouteId = /^jp-\d+$/i.test(fetchClientContext || '');
   const clientVersionValidated = Boolean(fetchClientContext) && !fetchClientContext.includes('\uFFFD') && !clientVersionIsRouteId;
   return normalizeFetchProfile({
@@ -85,6 +85,6 @@ export function createFetchProfile({ messageType, envelopeFields, requestFields,
     sameConnectionRequired: true, prepareLoginRequired: true, connectionContextValidated: true,
     clientVersionSourceRole: 'fetchGameRecordClientContext', clientVersionSourceRpc: FETCH_RPC, clientVersionValidated, clientVersionIsRouteId,
     clientVersionSemanticMatch: clientVersionValidated, field1SourceValidated: true, field2SourceValidated: true,
-    semanticValidated: clientVersionValidated, sourceMetadata, sessionTimeline, validated: clientVersionValidated
+    semanticValidated: clientVersionValidated, sourceMetadata, sessionTimeline, binaryProfile, validated: clientVersionValidated
   });
 }
