@@ -4,6 +4,7 @@ import worker, { authenticatedFetchRecord, buildGameRecordsDetailRequest, buildP
 import { CONNECTION_CONTEXT_PENDING, createFetchProfile, validateFetchProfile } from './shared/fetch-profile-schema.js';
 import { compareProtobufBinary, inspectBinaryFields } from './shared/protobuf-binary-compare.js';
 import { buildSessionRuntimePlan, createSessionTimeline, legacySessionTimeline, safeDelayMs, validateSessionTimeline } from './shared/session-timeline-schema.js';
+import { auditFetchProfile, classifyFetchRejection } from './shared/profile-audit.js';
 
 function field(id, value) {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
@@ -15,6 +16,32 @@ const fetchProfile = { version: 'current-har-v2', messageType: '.lq.Lobby.fetchG
 
 test('共有URLから完全な牌譜IDを保持する', () => {
   assert.equal(extractPaipuId('https://game.mahjongsoul.com/?paipu=240101-test_abc'), '240101-test_abc');
+});
+
+test('旧ProfileのHAR変換欠落を安全に監査する', () => {
+  const audit = auditFetchProfile(fetchProfile);
+  assert.equal(audit.profileCanGenerateWorkerRequest, true);
+  assert.equal(audit.profileCanReproduceOriginalRequest, true);
+  assert.equal(audit.profileCanReproduceOriginalBinary, false);
+  assert.equal(audit.rawHarCompared, false);
+  assert.equal(audit.comparisonLevel, 'worker-vs-profile');
+  assert.equal(audit.profileLossDetected, true);
+  assert.ok(audit.lossItems.includes('RAW_REQUEST_BINARY'));
+  assert.ok(audit.lossItems.includes('UNKNOWN_FIELD_PROOF'));
+});
+
+test('v3 Profileは安全なBinaryメタデータを保持してもraw byte再現とは判定しない', () => {
+  const profile = createFetchProfile({ messageType: '.lq.Lobby.fetchGameRecord', envelopeFields: fetchProfile.envelopeFields, requestFields: fetchProfile.requestFields, fetchClientContext: 'current-fetch-context', sourceConnectionIndex: 1, sourceMetadata: [], sessionTimeline: { version: 'current-har-session-v1' }, binaryProfile: { requestLength: 10, payloadLength: 5, unknownFieldCount: 0 } });
+  const audit = auditFetchProfile(profile);
+  assert.equal(audit.profileCanRebuildRawBinary, false);
+  assert.equal(audit.profileCanReproduceOriginalBinary, false);
+  assert.equal(audit.missingSessionField, false);
+  assert.equal(audit.lossItems.includes('SAFE_BINARY_METADATA'), false);
+});
+
+test('Code1004はProfile証跡欠落があれば推測せず分類する', () => {
+  const audit = auditFetchProfile(fetchProfile);
+  assert.equal(classifyFetchRejection({ audit, actualFailureCode: 'MAJSOUL_1004', requestSemanticMatched: true, sessionTimelineProfileValid: false }), 'PROFILE_INFORMATION_LOST');
 });
 
 test('現行HTMLからUnity設定を絶対URL化する', () => {

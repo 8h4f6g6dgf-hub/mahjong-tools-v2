@@ -1,6 +1,6 @@
-// v5.3.9: Binary比較版を旧PWAキャッシュから分離するため更新。
-const SERVICE_WORKER_VERSION = '5.3.9';
-const CACHE_NAME = 'mahjong-tools-v5.3.9';
+// v5.4.0: Profile監査版を旧PWAキャッシュから分離するため更新。
+const SERVICE_WORKER_VERSION = '5.4.0';
+const CACHE_NAME = 'mahjong-tools-v5.4.0';
 
 const ASSETS_TO_CACHE = [
   './',
